@@ -30,7 +30,7 @@ function Forgot() {
       redirectTo: `${window.location.origin}/reset-password`,
     });
     setBusy(false);
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     setSent(true);
     toast.success("Reset link sent");
   }

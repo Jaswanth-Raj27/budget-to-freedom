@@ -64,7 +64,7 @@ function ScenarioPage() {
 
   const draftValid = draft.name.trim() && Number(draft.balance) > 0 && draft.apr !== "" && Number(draft.apr) >= 0;
   function addCard() {
-    if (!draftValid) return toast.error("Add a name, balance and APR for this card");
+    if (!draftValid) { toast.error("Add a name, balance and APR for this card"); return; }
     const c: CardInput = {
       name: draft.name.trim(),
       balance: Math.round(Number(draft.balance) * 100) / 100,
@@ -78,6 +78,7 @@ function ScenarioPage() {
   }
   function removeCard(i: number) {
     const c = cards[i];
+    if (!c) return;
     setCards((cs) => cs.filter((_, j) => j !== i));
     toast(`${c.name} removed`);
   }

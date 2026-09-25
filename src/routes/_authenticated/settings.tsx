@@ -34,14 +34,14 @@ function Settings() {
   async function saveName(e: React.FormEvent) {
     e.preventDefault();
     const { error } = await supabase.from("profiles").update({ name }).eq("id", user.id);
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     toast.success("Name updated");
     qc.invalidateQueries({ queryKey: ["profile"] });
   }
   async function savePw(e: React.FormEvent) {
     e.preventDefault();
     const { error } = await supabase.auth.updateUser({ password: pw });
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     setPw("");
     toast.success("Password changed");
   }

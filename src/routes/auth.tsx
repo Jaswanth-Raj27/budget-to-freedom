@@ -48,7 +48,7 @@ function AuthPage() {
         options: { data: { name }, emailRedirectTo: `${window.location.origin}/dashboard` },
       });
       setBusy(false);
-      if (error) return toast.error(error.message);
+      if (error) { toast.error(error.message); return; }
       if (data.session) {
         toast.success("Welcome aboard!");
         navigate({ to: "/dashboard" });
@@ -56,7 +56,7 @@ function AuthPage() {
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       setBusy(false);
-      if (error) return toast.error(error.message);
+      if (error) { toast.error(error.message); return; }
       toast.success("Signed in");
       navigate({ to: "/dashboard" });
     }

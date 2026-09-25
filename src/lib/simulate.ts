@@ -78,18 +78,18 @@ export function simulate(
     // 1. Interest
     let monthInterest = 0;
     cards.forEach((c, i) => {
-      if (bal[i] <= 0) return;
-      const interest = Math.round((bal[i] * (c.apr / 100)) / 12);
-      bal[i] += interest;
+      if (bal[i]! <= 0) return;
+      const interest = Math.round((bal[i]! * (c.apr / 100)) / 12);
+      bal[i]! += interest;
       monthInterest += interest;
     });
 
     // 2. Minimums (capped at remaining balance)
     const mins = cards.map((c, i) => {
-      if (bal[i] <= 0) return 0;
-      const pct = Math.round(bal[i] * (c.min_pct / 100));
+      if (bal[i]! <= 0) return 0;
+      const pct = Math.round(bal[i]! * (c.min_pct / 100));
       const floor = Math.round(c.min_floor * 100);
-      return Math.min(bal[i], Math.max(pct, floor));
+      return Math.min(bal[i]!, Math.max(pct, floor));
     });
     const sumMins = mins.reduce((a, b) => a + b, 0);
     if (month === 1) result.firstMonthMinimums = sumMins / 100;
@@ -107,7 +107,7 @@ export function simulate(
 
     let monthPaid = 0;
     mins.forEach((m, i) => {
-      bal[i] -= m;
+      bal[i]! -= m;
       available -= m;
       monthPaid += m;
     });
@@ -116,22 +116,22 @@ export function simulate(
     while (available > 0) {
       let target = -1;
       for (let i = 0; i < cards.length; i++) {
-        if (bal[i] <= 0) continue;
+        if (bal[i]! <= 0) continue;
         if (target === -1) { target = i; continue; }
         const better =
           strategy === "snowball"
-            ? bal[i] < bal[target] || (bal[i] === bal[target] && cards[i].apr > cards[target].apr)
-            : cards[i].apr > cards[target].apr || (cards[i].apr === cards[target].apr && bal[i] < bal[target]);
+            ? bal[i]! < bal[target]! || (bal[i]! === bal[target]! && cards[i]!.apr > cards[target]!.apr)
+            : cards[i]!.apr > cards[target]!.apr || (cards[i]!.apr === cards[target]!.apr && bal[i]! < bal[target]!);
         if (better) target = i;
       }
       if (target === -1) break; // everything paid off
-      const pay = Math.min(available, bal[target]);
-      bal[target] -= pay;
+      const pay = Math.min(available, bal[target]!);
+      bal[target]! -= pay;
       available -= pay;
       monthPaid += pay;
     }
 
-    for (let i = 0; i < bal.length; i++) if (bal[i] < 0) bal[i] = 0; // never negative
+    for (let i = 0; i < bal.length; i++) if (bal[i]! < 0) bal[i]! = 0; // never negative
 
     interestTotal += monthInterest;
     paidTotal += monthPaid;

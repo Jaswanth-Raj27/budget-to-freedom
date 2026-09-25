@@ -31,7 +31,7 @@ function Dashboard() {
 
   async function remove(id: string, name: string) {
     const { error } = await supabase.from("scenarios").delete().eq("id", id);
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     toast.success(`Deleted "${name}"`);
     qc.invalidateQueries({ queryKey: ["scenarios"] });
   }
