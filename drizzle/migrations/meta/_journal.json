@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1790335298889,
+      "tag": "0000_debt_free_buddy_schema",
+      "breakpoints": true
+    }
+  ]
+}
