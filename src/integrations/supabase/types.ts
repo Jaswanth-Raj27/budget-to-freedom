@@ -14,7 +14,104 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      cards: {
+        Row: {
+          apr: number
+          balance: number
+          id: string
+          min_floor: number
+          min_pct: number
+          name: string
+          position: number
+          scenario_id: string
+          user_id: string
+        }
+        Insert: {
+          apr?: number
+          balance?: number
+          id?: string
+          min_floor?: number
+          min_pct?: number
+          name?: string
+          position?: number
+          scenario_id: string
+          user_id?: string
+        }
+        Update: {
+          apr?: number
+          balance?: number
+          id?: string
+          min_floor?: number
+          min_pct?: number
+          name?: string
+          position?: number
+          scenario_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cards_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "scenarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string
+          id: string
+          name?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      scenarios: {
+        Row: {
+          budget: number
+          budget_mode: string
+          created_at: string
+          id: string
+          name: string
+          strategy: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          budget?: number
+          budget_mode?: string
+          created_at?: string
+          id?: string
+          name?: string
+          strategy?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          budget?: number
+          budget_mode?: string
+          created_at?: string
+          id?: string
+          name?: string
+          strategy?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
