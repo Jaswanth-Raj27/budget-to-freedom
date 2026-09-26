@@ -79,6 +79,42 @@ export type Database = {
         }
         Relationships: []
       }
+      saved_cards: {
+        Row: {
+          apr: number
+          balance: number
+          created_at: string
+          id: string
+          last_updated: string
+          min_floor: number
+          min_pct: number
+          name: string
+          user_id: string
+        }
+        Insert: {
+          apr?: number
+          balance?: number
+          created_at?: string
+          id?: string
+          last_updated?: string
+          min_floor?: number
+          min_pct?: number
+          name: string
+          user_id?: string
+        }
+        Update: {
+          apr?: number
+          balance?: number
+          created_at?: string
+          id?: string
+          last_updated?: string
+          min_floor?: number
+          min_pct?: number
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       scenarios: {
         Row: {
           budget: number
