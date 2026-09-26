@@ -10,9 +10,9 @@ export const Route = createFileRoute("/_authenticated")({
     return { user: data.user };
   },
   component: () => (
-    <div className="min-h-screen bg-background">
+    <div className="app-backdrop min-h-screen">
       <AppHeader />
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
         <Outlet />
       </main>
     </div>
