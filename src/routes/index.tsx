@@ -30,7 +30,7 @@ function MagneticCTA({ children }: { children: ReactNode }) {
     <motion.div
       ref={ref}
       style={{ x, y }}
-      whileHover={reduce ? undefined : { scale: 1.04 }}
+      whileHover={{ scale: reduce ? 1 : 1.04 }}
       transition={{ type: "spring", ...spring }}
       onMouseMove={(e) => {
         if (reduce || !ref.current) return;
@@ -92,13 +92,13 @@ function Landing() {
           {!reduce && <motion.div aria-hidden className="pointer-events-none absolute inset-0 rounded-3xl" style={{ background: glow }} />}
 
           {/* Floating shapes */}
-          <motion.div aria-hidden style={reduce ? undefined : { x: shapeX, y: shapeY }} className="pointer-events-none absolute right-2 top-10 hidden sm:block">
+          <motion.div aria-hidden style={reduce ? {} : { x: shapeX, y: shapeY }} className="pointer-events-none absolute right-2 top-10 hidden sm:block">
             <div className="h-44 w-44 rounded-full border border-primary/25 bg-primary/5" />
             <div className="absolute -left-16 top-24 h-24 w-24 rounded-full border border-accent/15 bg-accent/5" />
             <div className="absolute left-24 top-36 h-10 w-10 rounded-full bg-primary/20 blur-sm" />
           </motion.div>
 
-          <motion.div style={reduce ? undefined : { rotateX: rotX, rotateY: rotY }} className="relative">
+          <motion.div style={reduce ? {} : { rotateX: rotX, rotateY: rotY }} className="relative">
             <motion.p initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
               className="text-sm font-medium uppercase tracking-widest text-primary">
               Credit card payoff simulator
