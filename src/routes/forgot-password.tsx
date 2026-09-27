@@ -35,10 +35,10 @@ function Forgot() {
     toast.success("Reset link sent");
   }
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
+    <div className="flex min-h-screen flex-col items-center justify-center app-backdrop px-4">
       <Link to="/" className="mb-8"><Logo /></Link>
-      <div className="w-full max-w-sm rounded-2xl border bg-card p-6 shadow-sm sm:p-8">
-        <h1 className="text-xl font-semibold text-primary">Forgot your password?</h1>
+      <div className="w-full max-w-sm rounded-2xl border bg-card p-6 shadow-card sm:p-8">
+        <h1 className="text-xl font-semibold text-foreground">Forgot your password?</h1>
         {sent ? (
           <p className="mt-2 text-sm text-muted-foreground">If an account exists for {email}, a reset link is on its way.</p>
         ) : (

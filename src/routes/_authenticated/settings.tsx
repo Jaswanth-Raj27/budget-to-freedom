@@ -57,12 +57,12 @@ function Settings() {
     }
   }
 
-  const section = "rounded-2xl border bg-card p-6 shadow-sm";
+  const section = "rounded-2xl border bg-card p-6 shadow-card";
   return (
     <div className="mx-auto max-w-xl space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight text-primary">Account settings</h1>
+      <h1 className="text-2xl font-semibold tracking-tight text-foreground">Account settings</h1>
       <form onSubmit={saveName} className={section}>
-        <h2 className="font-semibold text-primary">Profile</h2>
+        <h2 className="font-semibold text-foreground">Profile</h2>
         <p className="text-sm text-muted-foreground">{user.email}</p>
         <div className="mt-4 space-y-1.5">
           <Label htmlFor="name">Full name</Label>
@@ -71,7 +71,7 @@ function Settings() {
         <Button className="mt-4">Save name</Button>
       </form>
       <form onSubmit={savePw} className={section}>
-        <h2 className="font-semibold text-primary">Change password</h2>
+        <h2 className="font-semibold text-foreground">Change password</h2>
         <div className="mt-4 space-y-1.5">
           <Label htmlFor="pw">New password</Label>
           <Input id="pw" type="password" minLength={6} value={pw} onChange={(e) => setPw(e.target.value)} required />

@@ -33,10 +33,10 @@ function Reset() {
     navigate({ to: "/dashboard" });
   }
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
+    <div className="flex min-h-screen flex-col items-center justify-center app-backdrop px-4">
       <div className="mb-8"><Logo /></div>
-      <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-2xl border bg-card p-6 shadow-sm sm:p-8">
-        <h1 className="text-xl font-semibold text-primary">Choose a new password</h1>
+      <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-2xl border bg-card p-6 shadow-card sm:p-8">
+        <h1 className="text-xl font-semibold text-foreground">Choose a new password</h1>
         <div className="space-y-1.5">
           <Label htmlFor="pw">New password</Label>
           <Input id="pw" type="password" minLength={6} required value={pw} onChange={(e) => setPw(e.target.value)} />

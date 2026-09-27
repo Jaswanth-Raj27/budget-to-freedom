@@ -67,7 +67,8 @@ export type ImportRow = { include: boolean; name: string; balance: string; apr: 
 export function csvToRows(text: string): { rows: ImportRow[]; error?: string } {
   const data = parseCsv(text);
   if (data.length < 2) return { rows: [], error: "That file doesn't have a header row and at least one data row." };
-  const [header, ...body] = data;
+  const header = data[0] ?? [];
+  const body = data.slice(1);
   const m = matchHeaders(header);
   if (m.name === undefined && m.balance === undefined) {
     return { rows: [], error: "We couldn't find a card name or balance column. Check the column headers." };
