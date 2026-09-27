@@ -326,11 +326,11 @@ function BudgetStep(p: {
   const mins = useMemo(() => simulate(p.cards, 0, "fixed_extra", "avalanche", true).firstMonthMinimums, [p.cards]);
   const b = Number(p.budget) || 0;
   const tooLow = p.mode === "fixed_total" && b > 0 && b < mins;
-  const opt = (active: boolean) => cn("rounded-xl border p-4 text-left transition-colors", active ? "border-accent bg-accent/10 ring-1 ring-accent" : "bg-card hover:bg-muted/50");
+  const opt = (active: boolean) => cn("rounded-xl border p-4 text-left transition-colors", active ? "border-primary bg-primary/10 ring-1 ring-primary" : "bg-card hover:bg-muted/50");
   return (
-    <section className="mt-6 space-y-6 rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
+    <section className="mt-8 space-y-6 rounded-2xl border bg-card p-5 shadow-card sm:p-6">
       <div>
-        <h2 className="text-lg font-semibold text-primary">Set your budget and strategy</h2>
+        <h2 className="text-lg font-semibold text-foreground">Set your budget and strategy</h2>
         <p className="mt-1 text-sm text-muted-foreground">Your minimums this month add up to <strong>{money(mins, true)}</strong>.</p>
       </div>
       <Field label="Scenario name" id="sname"><Input id="sname" value={p.name} onChange={(e) => p.setName(e.target.value)} /></Field>
@@ -338,11 +338,11 @@ function BudgetStep(p: {
         <Label>How do you want to set your budget?</Label>
         <div className="grid gap-3 sm:grid-cols-2">
           <button type="button" className={opt(p.mode === "fixed_total")} onClick={() => p.setMode("fixed_total")}>
-            <div className="font-medium text-primary">Total monthly payment</div>
+            <div className="font-medium text-foreground">Total monthly payment</div>
             <div className="text-sm text-muted-foreground">The full amount you'll pay across all cards each month.</div>
           </button>
           <button type="button" className={opt(p.mode === "fixed_extra")} onClick={() => p.setMode("fixed_extra")}>
-            <div className="font-medium text-primary">Extra on top of minimums</div>
+            <div className="font-medium text-foreground">Extra on top of minimums</div>
             <div className="text-sm text-muted-foreground">Pay every minimum, plus this much more each month.</div>
           </button>
         </div>
@@ -359,11 +359,11 @@ function BudgetStep(p: {
         <Label>Payoff strategy</Label>
         <div className="grid gap-3 sm:grid-cols-2">
           <button type="button" className={opt(p.strategy === "snowball")} onClick={() => p.setStrategy("snowball")}>
-            <div className="font-medium text-primary">Snowball</div>
+            <div className="font-medium text-foreground">Snowball</div>
             <div className="text-sm text-muted-foreground">Pay off the smallest balance first for quick, motivating wins.</div>
           </button>
           <button type="button" className={opt(p.strategy === "avalanche")} onClick={() => p.setStrategy("avalanche")}>
-            <div className="font-medium text-primary">Avalanche</div>
+            <div className="font-medium text-foreground">Avalanche</div>
             <div className="text-sm text-muted-foreground">Pay off the highest interest rate first to save the most money.</div>
           </button>
         </div>
@@ -400,11 +400,11 @@ function Results(p: { cards: CardInput[]; budget: number; mode: BudgetMode; stra
 
   if (plan.status !== "ok") {
     return (
-      <section className="mt-6 space-y-4 rounded-2xl border border-destructive/30 bg-card p-6 shadow-sm">
+      <section className="mt-8 space-y-4 rounded-2xl border border-destructive/30 bg-card p-6 shadow-card">
         <div className="flex items-start gap-3">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
           <div>
-            <h2 className="font-semibold text-primary">
+            <h2 className="font-semibold text-foreground">
               {plan.status === "below_minimums" ? "This budget doesn't cover your minimum payments" : "This budget will never pay off your debt"}
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -423,9 +423,9 @@ function Results(p: { cards: CardInput[]; budget: number; mode: BudgetMode; stra
   const sorted = plan.rows;
 
   return (
-    <section className="mt-6 space-y-6">
+    <section className="mt-8 space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-primary">{p.name}</h2>
+        <h2 className="text-lg font-semibold text-foreground">{p.name}</h2>
         <div className="flex flex-wrap gap-2">
           {actions}
           <Button size="sm" onClick={p.onSave} disabled={p.saving}><Save className="h-4 w-4" /> {p.saving ? "Saving…" : "Save this scenario"}</Button>

@@ -63,19 +63,19 @@ function AuthPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-10">
+    <div className="flex min-h-screen flex-col items-center justify-center app-backdrop px-4 py-10">
       <Link to="/" className="mb-8"><Logo /></Link>
-      <div className="w-full max-w-sm rounded-2xl border bg-card p-6 shadow-sm sm:p-8">
+      <div className="w-full max-w-sm rounded-2xl border bg-card p-6 shadow-card sm:p-8">
         {sent ? (
           <div className="text-center">
-            <h1 className="text-xl font-semibold text-primary">Check your email</h1>
+            <h1 className="text-xl font-semibold text-foreground">Check your email</h1>
             <p className="mt-2 text-sm text-muted-foreground">
               We sent a confirmation link to <strong>{email}</strong>. Click it to finish creating your account.
             </p>
           </div>
         ) : (
           <>
-            <h1 className="text-xl font-semibold text-primary">{signup ? "Create your account" : "Welcome back"}</h1>
+            <h1 className="text-xl font-semibold text-foreground">{signup ? "Create your account" : "Welcome back"}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {signup ? "Free, private, and takes a minute." : "Sign in to see your saved plans."}
             </p>
@@ -107,7 +107,7 @@ function AuthPage() {
             </form>
             <p className="mt-6 text-center text-sm text-muted-foreground">
               {signup ? "Already have an account? " : "New here? "}
-              <Link to="/auth" search={{ mode: signup ? "signin" : "signup" }} className="font-medium text-primary underline-offset-4 hover:underline">
+              <Link to="/auth" search={{ mode: signup ? "signin" : "signup" }} className="font-medium text-foreground underline-offset-4 hover:underline">
                 {signup ? "Sign in" : "Create an account"}
               </Link>
             </p>
