@@ -1,16 +1,26 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowLeft, ArrowRight, ChevronDown, Plus, Save, Trash2, CreditCard } from "lucide-react";
+import { AnimatePresence, animate, motion, useReducedMotion } from "motion/react";
+import { AlertTriangle, ArrowLeft, ArrowRight, ChevronDown, Plus, Save, Trash2, CreditCard, Check } from "lucide-react";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { CsvHelpNote, CsvImportButton } from "@/components/CsvImport";
 import { cn } from "@/lib/utils";
 import { simulate, money, formatMonths, type BudgetMode, type CardInput, type Strategy } from "@/lib/simulate";
+
+const stepMotion = {
+  initial: { opacity: 0, x: 24 },
+  animate: { opacity: 1, x: 0 },
+  exit: { opacity: 0, x: -24 },
+  transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] as const },
+};
 
 export const Route = createFileRoute("/_authenticated/scenario/$id")({
   head: () => ({ meta: [{ title: "Payoff plan — Debt Free Buddy" }] }),
@@ -34,6 +44,31 @@ function ScenarioPage() {
   const [mode, setMode] = useState<BudgetMode>("fixed_total");
   const [strategy, setStrategy] = useState<Strategy>("avalanche");
   const [saving, setSaving] = useState(false);
+  const [saveToLibrary, setSaveToLibrary] = useState(false);
+  const { data: savedCards } = useQuery({
+    queryKey: ["saved_cards"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("saved_cards").select("*").order("created_at", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  function addFromLibrary(s: NonNullable<typeof savedCards>[number]) {
+    const c: CardInput = { name: s.name, balance: Number(s.balance), apr: Number(s.apr), min_pct: Number(s.min_pct), min_floor: Number(s.min_floor) };
+    setCards((cs) => [...cs, c]);
+    toast.success(`${c.name} added`);
+  }
+
+  async function importCsv(list: CardInput[], dest: "saved" | "scenario" | "both") {
+    if (dest !== "scenario") {
+      const { error } = await supabase.from("saved_cards").insert(list);
+      if (error) { toast.error(error.message); throw error; }
+      qc.invalidateQueries({ queryKey: ["saved_cards"] });
+    }
+    if (dest !== "saved") setCards((cs) => [...cs, ...list]);
+    toast.success(`${list.length} card${list.length === 1 ? "" : "s"} imported`);
+  }
 
   // Load a saved scenario exactly as it was left
   useEffect(() => {
@@ -75,6 +110,12 @@ function ScenarioPage() {
     setCards((cs) => [...cs, c]);
     setDraft(emptyDraft);
     toast.success(`${c.name} added`);
+    if (saveToLibrary) {
+      supabase.from("saved_cards").insert(c).then(({ error }) => {
+        if (error) toast.error(error.message);
+        else { toast.success(`${c.name} saved to My Cards`); qc.invalidateQueries({ queryKey: ["saved_cards"] }); }
+      });
+    }
   }
   function removeCard(i: number) {
     const c = cards[i];
@@ -120,18 +161,52 @@ function ScenarioPage() {
 
       <StepIndicator step={step} onJump={(s) => (s < step || (s === 2 && cards.length) || (s === 3 && cards.length && budgetNum > 0)) && setStep(s)} />
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-primary px-4 py-3 text-primary-foreground">
-        <span className="text-sm">
-          Total debt: <strong className="text-accent">{money(totalDebt, true)}</strong> across {cards.length} card{cards.length === 1 ? "" : "s"}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card px-4 py-3 shadow-card">
+        <span className="text-sm text-muted-foreground">
+          Total debt: <strong className="text-foreground">{money(totalDebt, true)}</strong> across {cards.length} card{cards.length === 1 ? "" : "s"}
         </span>
-        {step === 3 && <span className="text-xs opacity-80">Budget {money(budgetNum)}{mode === "fixed_extra" ? " extra" : ""}/mo · <span className="capitalize">{strategy}</span></span>}
+        {step === 3 && <span className="text-xs text-muted-foreground">Budget {money(budgetNum)}{mode === "fixed_extra" ? " extra" : ""}/mo · <span className="capitalize">{strategy}</span></span>}
       </div>
 
+      <AnimatePresence mode="wait" initial={false}>
       {step === 1 && (
-        <section className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
-          <div className="rounded-2xl border bg-card p-5 shadow-sm sm:p-6">
-            <h2 className="text-lg font-semibold text-primary">Add your cards</h2>
-            <p className="mt-1 text-sm text-muted-foreground">One card at a time. Minimum payment defaults are already filled in.</p>
+        <motion.section key="s1" {...stepMotion} className="mt-8 grid gap-6 lg:grid-cols-[1fr_320px]">
+          <div className="space-y-6">
+            {savedCards && savedCards.length > 0 && (
+              <div className="rounded-2xl border bg-card p-5 shadow-card sm:p-6">
+                <h2 className="text-lg font-semibold text-foreground">Choose from my cards</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Tap a card to copy it into this scenario. You can still edit it here without changing your library.</p>
+                <ul className="mt-4 space-y-2">
+                  {savedCards.map((s) => {
+                    const used = cards.some((c) => c.name === s.name && c.balance === Number(s.balance));
+                    return (
+                      <li key={s.id}>
+                        <button type="button" onClick={() => addFromLibrary(s)}
+                          className="flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left hover:border-primary/60 hover:bg-primary/5 active:scale-[0.99]">
+                          <CreditCard className="h-4 w-4 shrink-0 text-accent" />
+                          <span className="min-w-0 flex-1 truncate text-sm font-medium">{s.name}</span>
+                          <span className="text-xs text-muted-foreground tabular-nums">{money(Number(s.balance), true)} · {Number(s.apr)}%</span>
+                          {used ? <Check className="h-4 w-4 text-primary" /> : <Plus className="h-4 w-4 text-muted-foreground" />}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+          <div className="rounded-2xl border bg-card p-5 shadow-card sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Add your cards</h2>
+                <p className="mt-1 text-sm text-muted-foreground">One card at a time. Minimum payment defaults are already filled in.</p>
+              </div>
+              <CsvImportButton size="sm" onImport={importCsv} destinations={[
+                { value: "scenario", label: "This scenario only" },
+                { value: "both", label: "This scenario + My Cards" },
+                { value: "saved", label: "My Cards only" },
+              ]} />
+            </div>
+            <div className="mt-3"><CsvHelpNote /></div>
             <form className="mt-5 grid gap-4 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); addCard(); }}>
               <Field label="Card nickname" id="cname" className="sm:col-span-2">
                 <Input id="cname" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="e.g. Chase Freedom" />
@@ -148,6 +223,10 @@ function ScenarioPage() {
               <Field label="Minimum payment floor" id="cfloor" prefix="$">
                 <Input id="cfloor" type="number" inputMode="decimal" min="0" step="1" value={draft.min_floor} onChange={(e) => setDraft({ ...draft, min_floor: e.target.value })} className="pl-7" />
               </Field>
+              <label className="flex items-center gap-2 text-sm text-muted-foreground sm:col-span-2">
+                <Checkbox checked={saveToLibrary} onCheckedChange={(v) => setSaveToLibrary(!!v)} />
+                Save this card to My Cards for next time
+              </label>
               <div className="sm:col-span-2">
                 <Button type="submit" variant="outline" className="w-full sm:w-auto">
                   <Plus className="h-4 w-4" /> {cards.length ? "Add another card" : "Add this card"}
@@ -155,12 +234,16 @@ function ScenarioPage() {
               </div>
             </form>
           </div>
+          </div>
           <div>
             <h3 className="text-sm font-medium text-muted-foreground">Your cards</h3>
             <ul className="mt-3 space-y-2">
               {cards.length === 0 && <li className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">No cards added yet.</li>}
+              <AnimatePresence initial={true}>
               {cards.map((c, i) => (
-                <li key={i} className="flex animate-in fade-in slide-in-from-top-1 items-center gap-3 rounded-xl border bg-card p-3 shadow-sm">
+                <motion.li key={`${c.name}-${i}`} layout initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 12 }}
+                  transition={{ duration: 0.25, delay: Math.min(i, 8) * 0.04 }}
+                  className="flex items-center gap-3 rounded-xl border bg-card p-3 shadow-card">
                   <CreditCard className="h-4 w-4 shrink-0 text-accent" />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium">{c.name}</div>
@@ -169,28 +252,34 @@ function ScenarioPage() {
                   <Button variant="ghost" size="icon" aria-label={`Delete ${c.name}`} onClick={() => removeCard(i)}>
                     <Trash2 className="h-4 w-4 text-muted-foreground" />
                   </Button>
-                </li>
+                </motion.li>
               ))}
+              </AnimatePresence>
             </ul>
             <Button className="mt-4 w-full" disabled={!cards.length} onClick={() => setStep(2)}>
               Continue <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
-        </section>
+        </motion.section>
       )}
 
       {step === 2 && (
+        <motion.div key="s2" {...stepMotion}>
         <BudgetStep
           {...{ name, setName, budget, setBudget, mode, setMode, strategy, setStrategy, cards }}
           onBack={() => setStep(1)}
           onNext={() => setStep(3)}
         />
+        </motion.div>
       )}
 
       {step === 3 && (
+        <motion.div key="s3" {...stepMotion}>
         <Results cards={cards} budget={budgetNum} mode={mode} strategy={strategy} name={name} saving={saving}
           onSave={save} onEdit={() => setStep(1)} onBudget={() => setStep(2)} />
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -204,8 +293,10 @@ function StepIndicator({ step, onJump }: { step: number; onJump: (s: number) => 
         {labels.map((l, i) => (
           <li key={l}>
             <button type="button" onClick={() => onJump(i + 1)} className="w-full text-left">
-              <div className={cn("h-1.5 rounded-full", i + 1 <= step ? "bg-accent" : "bg-muted")} />
-              <span className={cn("mt-1.5 block text-xs sm:text-sm", i + 1 === step ? "font-medium text-primary" : "text-muted-foreground")}>{l}</span>
+              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                <div className={cn("h-full rounded-full bg-primary transition-all duration-500", i + 1 <= step ? "w-full" : "w-0")} />
+              </div>
+              <span className={cn("mt-1.5 block text-xs sm:text-sm", i + 1 === step ? "font-medium text-foreground" : "text-muted-foreground")}>{l}</span>
             </button>
           </li>
         ))}
@@ -342,35 +433,36 @@ function Results(p: { cards: CardInput[]; budget: number; mode: BudgetMode; stra
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Stat label="Debt-free in" value={formatMonths(plan.months)} sub={`${plan.months} payments`} highlight />
-        <Stat label="Interest saved vs. minimums" value={saved === null ? "—" : money(Math.max(0, saved))}
+        <Stat label="Debt-free in" value={plan.months} format={formatMonths} sub={`${plan.months} payments`} highlight />
+        <Stat label="Interest saved vs. minimums" value={saved === null ? null : Math.max(0, saved)} format={(v) => money(v)}
           sub={base.status === "ok" ? `Minimums only: ${formatMonths(base.months)}` : "Minimums alone never pay it off"} />
-        <Stat label="Total paid" value={money(plan.totalPaid)} sub={`${money(plan.totalInterest)} of that is interest`} />
+        <Stat label="Total paid" value={plan.totalPaid} format={(v) => money(v)} sub={`${money(plan.totalInterest)} of that is interest`} />
       </div>
 
-      <div className="rounded-2xl border bg-card p-4 shadow-sm sm:p-6">
+      <div className="rounded-2xl border bg-card p-4 shadow-card sm:p-6">
         <h3 className="text-sm font-medium text-muted-foreground">Balance over time</h3>
         <div className="mt-4 h-72">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chart} margin={{ left: 8, right: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
-              <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" width={48} />
-              <Tooltip formatter={(v: number) => money(v)} labelFormatter={(m) => `Month ${m}`} />
+              <XAxis dataKey="month" tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} stroke="var(--border)" />
+              <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} stroke="var(--border)" width={48} />
+              <Tooltip formatter={(v: number) => money(v)} labelFormatter={(m) => `Month ${m}`}
+                contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--foreground)" }} />
               <Legend />
-              <Line type="monotone" dataKey="plan" name={`Your plan (${p.strategy})`} stroke="var(--accent)" strokeWidth={2.5} dot={false} />
-              <Line type="monotone" dataKey="minimums" name="Minimums only" stroke="var(--primary)" strokeWidth={1.5} strokeDasharray="5 4" dot={false} />
+              <Line type="monotone" dataKey="plan" name={`Your plan (${p.strategy})`} stroke="var(--primary)" strokeWidth={2.5} dot={false} />
+              <Line type="monotone" dataKey="minimums" name="Minimums only" stroke="var(--accent)" strokeWidth={1.5} strokeDasharray="5 4" dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      <Collapsible open={open} onOpenChange={setOpen} className="rounded-2xl border bg-card shadow-sm">
-        <CollapsibleTrigger className="flex w-full items-center justify-between p-4 text-sm font-medium text-primary sm:px-6">
+      <Collapsible open={open} onOpenChange={setOpen} className="rounded-2xl border bg-card shadow-card">
+        <CollapsibleTrigger className="flex w-full items-center justify-between p-4 text-sm font-medium text-foreground sm:px-6">
           Month-by-month breakdown
-          <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
+          <ChevronDown className={cn("h-4 w-4 transition-transform duration-300", open && "rotate-180")} />
         </CollapsibleTrigger>
-        <CollapsibleContent>
+        <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
           <div className="max-h-96 overflow-auto border-t">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-muted text-xs text-muted-foreground">
@@ -401,12 +493,25 @@ function Results(p: { cards: CardInput[]; budget: number; mode: BudgetMode; stra
   );
 }
 
-function Stat({ label, value, sub, highlight }: { label: string; value: string; sub: string; highlight?: boolean }) {
+function CountUp({ value, format }: { value: number; format: (v: number) => string }) {
+  const reduce = useReducedMotion();
+  const [v, setV] = useState(reduce ? value : 0);
+  useEffect(() => {
+    if (reduce) { setV(value); return; }
+    const c = animate(0, value, { duration: 1, ease: [0.22, 1, 0.36, 1], onUpdate: setV });
+    return () => c.stop();
+  }, [value, reduce]);
+  return <>{format(Math.round(v))}</>;
+}
+
+function Stat({ label, value, format, sub, highlight }: { label: string; value: number | null; format: (v: number) => string; sub: string; highlight?: boolean }) {
   return (
-    <div className={cn("rounded-2xl border p-5 shadow-sm", highlight ? "bg-primary text-primary-foreground" : "bg-card")}>
-      <div className={cn("text-xs font-medium uppercase tracking-wider", highlight ? "text-primary-foreground/70" : "text-muted-foreground")}>{label}</div>
-      <div className={cn("mt-2 text-2xl font-semibold tracking-tight", highlight ? "text-accent" : "text-primary")}>{value}</div>
-      <div className={cn("mt-1 text-xs", highlight ? "text-primary-foreground/70" : "text-muted-foreground")}>{sub}</div>
+    <div className={cn("rounded-2xl border p-5 shadow-card", highlight ? "border-primary/40 bg-primary/15" : "bg-card")}>
+      <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="mt-2 text-2xl font-semibold tracking-tight text-foreground tabular-nums">
+        {value === null ? "—" : <CountUp value={value} format={format} />}
+      </div>
+      <div className="mt-1 text-xs text-muted-foreground">{sub}</div>
     </div>
   );
 }
