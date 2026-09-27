@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import { motion } from "motion/react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { simulate, money, formatMonths, type BudgetMode, type Strategy } from "@/lib/simulate";
@@ -50,7 +51,7 @@ function Dashboard() {
         </Button>
       </div>
 
-      <div className="mt-8 space-y-3">
+      <div className="mt-10 space-y-4">
         {isLoading && <div className="h-24 animate-pulse rounded-2xl bg-muted" />}
         {data && data.length === 0 && (
           <div className="rounded-2xl border border-dashed bg-card p-10 text-center">
@@ -61,14 +62,14 @@ function Dashboard() {
             </Button>
           </div>
         )}
-        {data?.map((s) => {
+        {data?.map((s, idx) => {
           const cards = [...s.cards].sort((a, b) => a.position - b.position).map((c) => ({
             name: c.name, balance: Number(c.balance), apr: Number(c.apr), min_pct: Number(c.min_pct), min_floor: Number(c.min_floor),
           }));
           const r = simulate(cards, Number(s.budget), s.budget_mode as BudgetMode, s.strategy as Strategy);
           const total = cards.reduce((a, c) => a + c.balance, 0);
           return (
-            <div key={s.id} className="group flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-card transition-shadow hover:shadow-md sm:p-5">
+            <motion.div key={s.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: Math.min(idx, 10) * 0.06, ease: [0.22, 1, 0.36, 1] }} className="group flex items-center gap-3 rounded-2xl border bg-card p-4 shadow-card transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card-hover sm:p-5">
               <Link to="/scenario/$id" params={{ id: s.id }} className="flex min-w-0 flex-1 items-center gap-4">
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-semibold text-foreground">{s.name}</div>
@@ -92,7 +93,7 @@ function Dashboard() {
               <Button variant="ghost" size="icon" aria-label={`Delete ${s.name}`} onClick={() => remove(s.id, s.name)}>
                 <Trash2 className="h-4 w-4 text-muted-foreground" />
               </Button>
-            </div>
+            </motion.div>
           );
         })}
       </div>
