@@ -1,4 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useRef } from "react";
+import { takeGuestPlan } from "@/lib/plan-utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
@@ -14,6 +16,24 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 
 function Dashboard() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const imported = useRef(false);
+  // Carry a plan built on the homepage (before signup) into a saved scenario
+  useEffect(() => {
+    if (imported.current) return;
+    imported.current = true;
+    const g = takeGuestPlan();
+    if (!g || !g.cards.length) return;
+    (async () => {
+      const { data, error } = await supabase.from("scenarios").insert({ name: "My first plan", budget: g.budget, budget_mode: g.mode, strategy: g.strategy }).select("id").single();
+      if (error) { toast.error(error.message); return; }
+      const { error: ce } = await supabase.from("cards").insert(g.cards.map((c, i) => ({ ...c, scenario_id: data.id, position: i })));
+      if (ce) { toast.error(ce.message); return; }
+      qc.invalidateQueries({ queryKey: ["scenarios"] });
+      toast.success("Your plan from the homepage is saved");
+      navigate({ to: "/scenario/$id", params: { id: data.id } });
+    })();
+  }, [qc, navigate]);
   const { data: profile } = useQuery({
     queryKey: ["profile"],
     queryFn: async () => (await supabase.from("profiles").select("name").maybeSingle()).data,

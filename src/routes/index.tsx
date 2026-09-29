@@ -4,6 +4,7 @@ import { motion, useMotionValue, useReducedMotion, useScroll, useSpring, useTran
 import { ShieldCheck, LineChart, Layers, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/AppHeader";
+import { TryItNow } from "@/components/TryItNow";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -14,6 +15,8 @@ export const Route = createFileRoute("/")({
       { property: "og:description", content: "Compare Snowball vs Avalanche and see your debt-free date. No card numbers, ever." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Debt Free Buddy — Credit card payoff simulator" },
+      { name: "twitter:description", content: "Compare Snowball vs Avalanche and see your debt-free date. No card numbers, ever." },
     ],
   }),
   component: Landing,
@@ -124,6 +127,8 @@ function Landing() {
             We never ask for your card number — just your balances and rates.
           </div>
         </section>
+
+        <TryItNow />
 
         <div className="mt-16 grid gap-4 sm:grid-cols-3">
           {[

@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AnimatePresence, animate, motion, useReducedMotion } from "motion/react";
 import { AlertTriangle, ArrowLeft, ArrowRight, ChevronDown, Plus, Save, Trash2, CreditCard, Check } from "lucide-react";
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { PayoffLandscape } from "@/components/PayoffLandscape";
+import { CompareStrategies, CountUp, PaymentTimeline, ShareButton, WhatIf } from "@/components/ResultsSections";
+import { monthLabel } from "@/lib/plan-utils";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -151,6 +153,23 @@ function ScenarioPage() {
     }
   }
 
+  async function persist(patch: { budget?: number; strategy?: Strategy }, msg: string) {
+    if (!isNew) {
+      const { error } = await supabase.from("scenarios").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
+      if (error) { toast.error(error.message); return; }
+      qc.invalidateQueries({ queryKey: ["scenarios"] });
+    }
+    toast.success(isNew ? `${msg} — save the scenario to keep it` : msg);
+  }
+  function applyBudget(b: number) {
+    const nb = mode === "fixed_total" ? b : b; setBudget(String(nb));
+    persist({ budget: nb }, `Budget updated to ${money(nb)}/mo`);
+  }
+  function pickStrategy(st: Strategy) {
+    setStrategy(st);
+    persist({ strategy: st }, `Switched to ${st === "snowball" ? "Snowball" : "Avalanche"}`);
+  }
+
   if (loading) return <div className="h-64 animate-pulse rounded-2xl bg-muted" />;
 
   return (
@@ -276,7 +295,7 @@ function ScenarioPage() {
       {step === 3 && (
         <motion.div key="s3" {...stepMotion}>
         <Results cards={cards} budget={budgetNum} mode={mode} strategy={strategy} name={name} saving={saving}
-          onSave={save} onEdit={() => setStep(1)} onBudget={() => setStep(2)} />
+          onSave={save} onApplyBudget={applyBudget} onUseStrategy={pickStrategy} onEdit={() => setStep(1)} onBudget={() => setStep(2)} />
         </motion.div>
       )}
       </AnimatePresence>
@@ -376,20 +395,15 @@ function BudgetStep(p: {
   );
 }
 
-function Results(p: { cards: CardInput[]; budget: number; mode: BudgetMode; strategy: Strategy; name: string; saving: boolean; onSave: () => void; onEdit: () => void; onBudget: () => void }) {
-  const plan = useMemo(() => simulate(p.cards, p.budget, p.mode, p.strategy), [p]);
+function Results(p: { cards: CardInput[]; budget: number; mode: BudgetMode; strategy: Strategy; name: string; saving: boolean; onSave: () => void; onApplyBudget: (b: number) => void; onUseStrategy: (s: Strategy) => void; onEdit: () => void; onBudget: () => void }) {
+  const plan = useMemo(() => simulate(p.cards, p.budget, p.mode, p.strategy), [p.cards, p.budget, p.mode, p.strategy]);
   const base = useMemo(() => simulate(p.cards, 0, p.mode, p.strategy, true), [p.cards, p.mode, p.strategy]);
-  const [open, setOpen] = useState(false);
+  const [extra, setExtraRaw] = useState(0);
+  const [debounced, setDebounced] = useState(0);
+  const setExtra = (n: number) => setExtraRaw(n);
+  useEffect(() => { const t = setTimeout(() => setDebounced(extra), 120); return () => clearTimeout(t); }, [extra]);
+  const boosted = useMemo(() => (debounced > 0 ? simulate(p.cards, p.budget + debounced, p.mode, p.strategy) : null), [debounced, p.cards, p.budget, p.mode, p.strategy]);
 
-  const chart = useMemo(() => {
-    const total = p.cards.reduce((a, c) => a + c.balance, 0);
-    const len = Math.max(plan.rows.length, base.rows.length);
-    const out = [{ month: 0, plan: total, minimums: total }];
-    for (let i = 0; i < len; i++) {
-      out.push({ month: i + 1, plan: plan.rows[i]?.remaining ?? 0, minimums: base.rows[i]?.remaining ?? (base.status === "ok" ? 0 : NaN) });
-    }
-    return out;
-  }, [plan, base, p.cards]);
 
   const actions = (
     <div className="flex flex-wrap gap-2">
@@ -420,88 +434,40 @@ function Results(p: { cards: CardInput[]; budget: number; mode: BudgetMode; stra
   }
 
   const saved = base.status === "ok" ? base.totalInterest - plan.totalInterest : null;
-  const sorted = plan.rows;
 
   return (
-    <section className="mt-8 space-y-8">
+    <section className="mt-8 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-foreground">{p.name}</h2>
         <div className="flex flex-wrap gap-2">
           {actions}
+          <ShareButton plan={plan} saved={saved} />
           <Button size="sm" onClick={p.onSave} disabled={p.saving}><Save className="h-4 w-4" /> {p.saving ? "Saving…" : "Save this scenario"}</Button>
         </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Stat label="Debt-free in" value={plan.months} format={formatMonths} sub={`${plan.months} payments`} highlight />
+        <Stat label="Debt-free by" value={plan.months} format={(v) => monthLabel(v)} sub={formatMonths(plan.months)} highlight />
         <Stat label="Interest saved vs. minimums" value={saved === null ? null : Math.max(0, saved)} format={(v) => money(v)}
           sub={base.status === "ok" ? `Minimums only: ${formatMonths(base.months)}` : "Minimums alone never pay it off"} />
         <Stat label="Total paid" value={plan.totalPaid} format={(v) => money(v)} sub={`${money(plan.totalInterest)} of that is interest`} />
       </div>
 
+      <WhatIf cards={p.cards} budget={p.budget} mode={p.mode} strategy={p.strategy} plan={plan}
+        extra={extra} setExtra={setExtra} boosted={boosted} onApply={(b) => { p.onApplyBudget(b); setExtra(0); }} />
+
       <div className="rounded-2xl border bg-card p-4 shadow-card sm:p-6">
-        <h3 className="text-sm font-medium text-muted-foreground">Balance over time</h3>
-        <div className="mt-4 h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chart} margin={{ left: 8, right: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="month" tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} stroke="var(--border)" />
-              <YAxis tickFormatter={(v) => `$${Math.round(v / 1000)}k`} tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} stroke="var(--border)" width={48} />
-              <Tooltip formatter={(v: number) => money(v)} labelFormatter={(m) => `Month ${m}`}
-                contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--foreground)" }} />
-              <Legend />
-              <Line type="monotone" dataKey="plan" name={`Your plan (${p.strategy})`} stroke="var(--primary)" strokeWidth={2.5} dot={false} />
-              <Line type="monotone" dataKey="minimums" name="Minimums only" stroke="var(--accent)" strokeWidth={1.5} strokeDasharray="5 4" dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
+        <div className="flex items-baseline justify-between gap-2">
+          <h3 className="font-semibold text-foreground">Payoff landscape</h3>
+          <span className="text-xs text-muted-foreground">Each band is a card — watch them disappear</span>
         </div>
+        <div className="mt-4"><PayoffLandscape cards={p.cards} plan={plan} base={base} boosted={extra > 0 ? boosted : null} /></div>
       </div>
 
-      <Collapsible open={open} onOpenChange={setOpen} className="rounded-2xl border bg-card shadow-card">
-        <CollapsibleTrigger className="flex w-full items-center justify-between p-4 text-sm font-medium text-foreground sm:px-6">
-          Month-by-month breakdown
-          <ChevronDown className={cn("h-4 w-4 transition-transform duration-300", open && "rotate-180")} />
-        </CollapsibleTrigger>
-        <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
-          <div className="max-h-96 overflow-auto border-t">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-muted text-xs text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 text-left">Month</th>
-                  <th className="px-3 py-2 text-right">Paid</th>
-                  <th className="px-3 py-2 text-right">Interest</th>
-                  {p.cards.map((c, i) => <th key={i} className="hidden px-3 py-2 text-right md:table-cell">{c.name}</th>)}
-                  <th className="px-3 py-2 text-right">Remaining</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map((r) => (
-                  <tr key={r.month} className="border-t tabular-nums">
-                    <td className="px-3 py-2">{r.month}</td>
-                    <td className="px-3 py-2 text-right">{money(r.payment, true)}</td>
-                    <td className="px-3 py-2 text-right text-muted-foreground">{money(r.interest, true)}</td>
-                    {r.balances.map((b, i) => <td key={i} className="hidden px-3 py-2 text-right md:table-cell">{money(b, true)}</td>)}
-                    <td className="px-3 py-2 text-right font-medium">{money(r.remaining, true)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
+      <CompareStrategies cards={p.cards} budget={p.budget} mode={p.mode} strategy={p.strategy} onUse={p.onUseStrategy} />
+      <PaymentTimeline cards={p.cards} plan={plan} name={p.name} />
     </section>
   );
-}
-
-function CountUp({ value, format }: { value: number; format: (v: number) => string }) {
-  const reduce = useReducedMotion();
-  const [v, setV] = useState(reduce ? value : 0);
-  useEffect(() => {
-    if (reduce) { setV(value); return; }
-    const c = animate(0, value, { duration: 1, ease: [0.22, 1, 0.36, 1], onUpdate: setV });
-    return () => c.stop();
-  }, [value, reduce]);
-  return <>{format(Math.round(v))}</>;
 }
 
 function Stat({ label, value, format, sub, highlight }: { label: string; value: number | null; format: (v: number) => string; sub: string; highlight?: boolean }) {
