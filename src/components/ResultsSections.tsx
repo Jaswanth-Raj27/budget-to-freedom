@@ -244,7 +244,7 @@ export function PaymentTimeline({ cards, plan, name }: { cards: CardInput[]; pla
                 </button>
                 <AnimatePresence initial={false}>
                   {open && (
-                    <motion.ul initial={reduce ? false : { height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={reduce ? undefined : { height: 0, opacity: 0 }}
+                    <motion.ul initial={reduce ? false : { height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={reduce ? { opacity: 0 } : { height: 0, opacity: 0 }}
                       transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }} className="overflow-hidden">
                       {list.map((r, k) => {
                         const principal = Math.max(0, r.paid - r.interestShown);
