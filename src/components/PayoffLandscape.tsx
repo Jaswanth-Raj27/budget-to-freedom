@@ -14,7 +14,7 @@ interface Props {
   compact?: boolean;
 }
 
-type Row = Record<string, number | undefined | [number, number]>;
+type Row = { m: number; plan?: number | undefined; min?: number | undefined; gap?: [number, number] | undefined; boost?: number | undefined; [k: string]: number | undefined | [number, number] };
 
 export function PayoffLandscape({ cards, plan, base, boosted, compact }: Props) {
   const reduce = useReducedMotion();
@@ -127,7 +127,7 @@ export function PayoffLandscape({ cards, plan, base, boosted, compact }: Props) 
             )}
             {events.filter((e) => e.month < planLen).map((e, k) => (
               <ReferenceLine key={e.card} x={e.month} stroke="var(--accent)" strokeOpacity={0.25}
-                label={compact ? undefined : { value: `${e.name} cleared`, position: "top", fill: "var(--muted-foreground)", fontSize: 10, dy: (k % 2) * 12 }} />
+                {...(compact ? {} : { label: { value: `${e.name} cleared`, position: "top", fill: "var(--muted-foreground)", fontSize: 10, dy: (k % 2) * 12 } })} />
             ))}
             {events.filter((e) => e.month < planLen).map((e) => (
               <ReferenceDot key={`d${e.card}`} x={e.month} y={Number(data[e.month]?.plan ?? 0)} r={4} fill="var(--primary)" stroke="var(--background)" strokeWidth={2} filter="url(#glow)" />
