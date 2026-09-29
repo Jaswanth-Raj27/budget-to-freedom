@@ -6,7 +6,7 @@ import { AnimatePresence, animate, motion, useReducedMotion } from "motion/react
 import { AlertTriangle, ArrowLeft, ArrowRight, ChevronDown, Plus, Save, Trash2, CreditCard, Check } from "lucide-react";
 import { PayoffLandscape } from "@/components/PayoffLandscape";
 import { CompareStrategies, CountUp, PaymentTimeline, ShareButton, WhatIf } from "@/components/ResultsSections";
-import { monthLabel, takeGuestPlan } from "@/lib/plan-utils";
+import { monthLabel } from "@/lib/plan-utils";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -165,7 +165,7 @@ function ScenarioPage() {
     const nb = mode === "fixed_total" ? b : b; setBudget(String(nb));
     persist({ budget: nb }, `Budget updated to ${money(nb)}/mo`);
   }
-  function useStrategy(st: Strategy) {
+  function pickStrategy(st: Strategy) {
     setStrategy(st);
     persist({ strategy: st }, `Switched to ${st === "snowball" ? "Snowball" : "Avalanche"}`);
   }
@@ -295,7 +295,7 @@ function ScenarioPage() {
       {step === 3 && (
         <motion.div key="s3" {...stepMotion}>
         <Results cards={cards} budget={budgetNum} mode={mode} strategy={strategy} name={name} saving={saving}
-          onSave={save} onApplyBudget={applyBudget} onUseStrategy={useStrategy} onEdit={() => setStep(1)} onBudget={() => setStep(2)} />
+          onSave={save} onApplyBudget={applyBudget} onUseStrategy={pickStrategy} onEdit={() => setStep(1)} onBudget={() => setStep(2)} />
         </motion.div>
       )}
       </AnimatePresence>
