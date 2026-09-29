@@ -49,6 +49,12 @@ function AuthPage() {
       });
       setBusy(false);
       if (error) { toast.error(error.message); return; }
+      // An empty identities list means this email is already registered
+      if (data.user && (data.user.identities?.length ?? 0) === 0) {
+        toast.error("An account with this email already exists. Sign in instead, or use “Forgot password?” to reset it.");
+        navigate({ to: "/auth", search: { mode: "signin" } });
+        return;
+      }
       if (data.session) {
         toast.success("Welcome aboard!");
         navigate({ to: "/dashboard" });
@@ -56,7 +62,12 @@ function AuthPage() {
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       setBusy(false);
-      if (error) { toast.error(error.message); return; }
+      if (error) {
+        if (/invalid login credentials/i.test(error.message)) toast.error("That email and password don't match. Check for typos, or tap “Forgot password?” to set a new one.");
+        else if (/not confirmed/i.test(error.message)) toast.error("Please confirm your email first — check your inbox (and spam) for the link.");
+        else toast.error(error.message);
+        return;
+      }
       toast.success("Signed in");
       navigate({ to: "/dashboard" });
     }
