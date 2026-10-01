@@ -10,8 +10,8 @@ export function ProgressBar({ elapsed, total, compact }: { elapsed: number; tota
   const reduce = useReducedMotion();
   const pct = total > 0 ? Math.min(100, (elapsed / total) * 100) : 0;
   return (
-    <div className={compact ? "w-40" : "w-full"}>
-      <div className="text-xs tabular-nums text-muted-foreground">
+    <div className={compact ? "w-56" : "w-full"}>
+      <div className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
         {elapsed === 0 ? `Month 1 of your ${total}-month plan` : `${Math.min(elapsed, total)} month${elapsed === 1 ? "" : "s"} into your ${total}-month plan`}
       </div>
       <div className="mt-1 h-1 overflow-hidden rounded-full bg-muted">

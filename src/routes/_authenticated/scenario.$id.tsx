@@ -479,7 +479,7 @@ function Results(p: { cards: CardInput[]; budget: number; mode: BudgetMode; stra
       <p className="text-base text-foreground">
         At this pace, you'll be debt-free by <strong>{monthLong(plan.months)}</strong>
         {saved !== null && saved > 0 ? <> — and keep <strong className="tabular-nums">{money(saved)}</strong> you'd otherwise pay in interest.</> : "."}
-        {firstClear && plan.rows.length > 1 && <span className="text-muted-foreground"> Your first card, {firstClear.name}, is gone in {formatMonths(firstClear.month)}.</span>}
+        {firstClear && p.cards.length > 1 && <span className="text-muted-foreground"> Your first card, {firstClear.name}, is gone in {formatMonths(firstClear.month)}.</span>}
       </p>
 
       <div className="grid gap-4 sm:grid-cols-3">
