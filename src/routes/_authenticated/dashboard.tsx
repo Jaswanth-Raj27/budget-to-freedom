@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
-import { takeGuestPlan } from "@/lib/plan-utils";
+import { monthsElapsed, takeGuestPlan } from "@/lib/plan-utils";
+import { Crunching, ProgressBar } from "@/components/PlanProgress";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
@@ -72,12 +73,12 @@ function Dashboard() {
       </div>
 
       <div className="mt-10 space-y-4">
-        {isLoading && <div className="h-24 animate-pulse rounded-2xl bg-muted" />}
+        {isLoading && <Crunching label="Loading your plans…" />}
         {data && data.length === 0 && (
           <div className="rounded-2xl border border-dashed bg-card p-10 text-center">
-            <h2 className="font-semibold text-foreground">No scenarios yet</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Add your cards and see when you could be debt-free.</p>
-            <Button asChild className="mt-5">
+            <h2 className="text-lg font-semibold text-foreground">No scenarios yet — let's build your first payoff plan</h2>
+            <p className="mt-1 text-sm text-muted-foreground">It takes about a minute, and only you can see it.</p>
+            <Button asChild size="lg" className="mt-6">
               <Link to="/scenario/$id" params={{ id: "new" }}><Plus className="h-4 w-4" /> Create your first scenario</Link>
             </Button>
           </div>
@@ -97,6 +98,7 @@ function Dashboard() {
                     {money(total)} across {cards.length} card{cards.length === 1 ? "" : "s"} · edited{" "}
                     {new Date(s.updated_at).toLocaleDateString()}
                   </div>
+                  {r.status === "ok" && r.months > 0 && <div className="mt-2 max-w-xs"><ProgressBar elapsed={monthsElapsed(s.created_at)} total={r.months} /></div>}
                 </div>
                 <div className="text-right">
                   {r.status === "ok" && r.months > 0 ? (
@@ -105,7 +107,7 @@ function Dashboard() {
                       <div className="text-xs capitalize text-muted-foreground">{s.strategy}</div>
                     </>
                   ) : (
-                    <div className="text-sm font-medium text-destructive">Budget too low</div>
+                    <div className="text-sm font-medium text-muted-foreground">Needs a bigger budget</div>
                   )}
                 </div>
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />

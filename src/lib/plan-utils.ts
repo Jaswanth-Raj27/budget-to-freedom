@@ -59,3 +59,20 @@ export function downloadCsv(filename: string, rows: (string | number)[][]) {
   a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 }
+
+/** Months since a plan was started (created). */
+export function monthsElapsed(createdAt: string, now = new Date()) {
+  const d = new Date(createdAt);
+  return Math.max(0, (now.getFullYear() - d.getFullYear()) * 12 + now.getMonth() - d.getMonth());
+}
+
+export interface Milestone { pct: 25 | 50 | 75; month: number }
+/** First month total remaining drops by 25/50/75% of the starting total. */
+export function progressMilestones(start: number, rows: MonthRow[]): Milestone[] {
+  const out: Milestone[] = [];
+  for (const pct of [25, 50, 75] as const) {
+    const r = rows.find((row) => row.remaining > 0 && row.remaining <= start * (1 - pct / 100));
+    if (r) out.push({ pct, month: r.month });
+  }
+  return out;
+}

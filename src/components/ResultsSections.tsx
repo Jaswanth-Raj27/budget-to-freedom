@@ -4,7 +4,7 @@ import { Check, ChevronDown, Download, Link2, Share2, Sparkles } from "lucide-re
 import { toast } from "sonner";
 import { toPng } from "html-to-image";
 import { simulate, money, formatMonths, type BudgetMode, type CardInput, type SimResult, type Strategy } from "@/lib/simulate";
-import { clearEvents, downloadCsv, monthDate, monthLabel, monthLong } from "@/lib/plan-utils";
+import { clearEvents, progressMilestones, downloadCsv, monthDate, monthLabel, monthLong } from "@/lib/plan-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -153,6 +153,7 @@ export function PaymentTimeline({ cards, plan, name }: { cards: CardInput[]; pla
   const [filter, setFilter] = useState<number | null>(null);
   const multi = cards.length > 1;
   const events = useMemo(() => clearEvents(cards, plan.rows), [cards, plan.rows]);
+  const marks = useMemo(() => progressMilestones(cards.reduce((a, c) => a + c.balance, 0), plan.rows), [cards, plan.rows]);
 
   const rows = plan.rows.map((r) => {
     const prevBal = r.month === 1 ? cards.map((c) => c.balance) : plan.rows[r.month - 2]!.balances;
@@ -216,7 +217,7 @@ export function PaymentTimeline({ cards, plan, name }: { cards: CardInput[]; pla
             <tbody>
               {rows.map((r) => (
                 <tr key={r.month} className={cn("border-t hover:bg-primary/5", r.cleared.length && "bg-primary/10")}>
-                  <td className="px-3 py-2">{monthLabel(r.month)}</td>
+                  <td className="px-3 py-2">{monthLabel(r.month)}{filter === null && marks.filter((mk) => mk.month === r.month).map((mk) => <span key={mk.pct} className="ml-2 rounded-full border border-accent/30 px-1.5 text-[10px] text-accent">{mk.pct}%</span>)}</td>
                   <td className="px-3 py-2 text-right">{money(r.paid, true)}</td>
                   <td className="px-3 py-2 text-right text-muted-foreground">{filter === null ? money(r.interest, true) : "—"}</td>
                   {multi && filter === null && r.balances.map((b, i) => <td key={i} className="hidden px-3 py-2 text-right md:table-cell">{money(b, true)}</td>)}
@@ -261,6 +262,9 @@ export function PaymentTimeline({ cards, plan, name }: { cards: CardInput[]; pla
                                 <div className="bg-primary" style={{ width: `${(principal / tot) * 100}%` }} />
                                 <div className="bg-accent/70" style={{ width: `${(r.interestShown / tot) * 100}%` }} />
                               </div>
+                              {filter === null && marks.filter((mk) => mk.month === r.month).map((mk) => (
+                                <span key={mk.pct} className="mt-1.5 mr-1.5 inline-flex items-center rounded-full border border-accent/30 px-2 py-0.5 text-[11px] font-medium text-accent">{mk.pct}% paid off</span>
+                              ))}
                               {r.cleared.map((e) => (
                                 <span key={e.card} className="mt-1.5 mr-1.5 inline-flex items-center gap-1 rounded-full bg-primary/20 px-2 py-0.5 text-[11px] font-medium text-foreground">
                                   <Check className="h-3 w-3 text-primary" /> {e.name} paid off

@@ -6,7 +6,8 @@ import { AnimatePresence, animate, motion, useReducedMotion } from "motion/react
 import { AlertTriangle, ArrowLeft, ArrowRight, ChevronDown, Plus, Save, Trash2, CreditCard, Check } from "lucide-react";
 import { PayoffLandscape } from "@/components/PayoffLandscape";
 import { CompareStrategies, CountUp, PaymentTimeline, ShareButton, WhatIf } from "@/components/ResultsSections";
-import { monthLabel } from "@/lib/plan-utils";
+import { clearEvents, monthLabel, monthLong } from "@/lib/plan-utils";
+import { Crunching } from "@/components/PlanProgress";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +48,8 @@ function ScenarioPage() {
   const [strategy, setStrategy] = useState<Strategy>("avalanche");
   const [saving, setSaving] = useState(false);
   const [saveToLibrary, setSaveToLibrary] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
   const { data: savedCards } = useQuery({
     queryKey: ["saved_cards"],
     queryFn: async () => {
@@ -99,9 +102,16 @@ function ScenarioPage() {
   const totalDebt = cards.reduce((a, c) => a + c.balance, 0);
   const budgetNum = Number(budget) || 0;
 
-  const draftValid = draft.name.trim() && Number(draft.balance) > 0 && draft.apr !== "" && Number(draft.apr) >= 0;
+  const errs = {
+    name: draft.name.trim() ? "" : "Give it a nickname so you can tell your cards apart.",
+    balance: draft.balance === "" ? "Add the balance from your latest statement." : !(Number(draft.balance) > 0) ? "Enter a positive amount, like 1250." : "",
+    apr: draft.apr === "" ? "Add the interest rate — it's on your statement." : !(Number(draft.apr) >= 0) || Number(draft.apr) > 100 ? "Enter a rate between 0 and 100." : "",
+  };
+  const draftValid = !errs.name && !errs.balance && !errs.apr;
+  const touch = (k: string) => setTouched((t) => ({ ...t, [k]: true }));
+  const errFor = (k: keyof typeof errs) => (touched[k] ? errs[k] : "");
   function addCard() {
-    if (!draftValid) { toast.error("Add a name, balance and APR for this card"); return; }
+    if (!draftValid) { setTouched({ name: true, balance: true, apr: true }); return; }
     const c: CardInput = {
       name: draft.name.trim(),
       balance: Math.round(Number(draft.balance) * 100) / 100,
@@ -111,6 +121,7 @@ function ScenarioPage() {
     };
     setCards((cs) => [...cs, c]);
     setDraft(emptyDraft);
+    setTouched({});
     toast.success(`${c.name} added`);
     if (saveToLibrary) {
       supabase.from("saved_cards").insert(c).then(({ error }) => {
@@ -170,7 +181,7 @@ function ScenarioPage() {
     persist({ strategy: st }, `Switched to ${st === "snowball" ? "Snowball" : "Avalanche"}`);
   }
 
-  if (loading) return <div className="h-64 animate-pulse rounded-2xl bg-muted" />;
+  if (loading) return <Crunching />;
 
   return (
     <div>
@@ -182,7 +193,8 @@ function ScenarioPage() {
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card px-4 py-3 shadow-card">
         <span className="text-sm text-muted-foreground">
-          Total debt: <strong className="text-foreground">{money(totalDebt, true)}</strong> across {cards.length} card{cards.length === 1 ? "" : "s"}
+          Total debt: <strong className="text-foreground tabular-nums">{money(totalDebt, true)}</strong> across {cards.length} card{cards.length === 1 ? "" : "s"}
+          {step === 1 && <span className="mt-0.5 block text-xs">Only you can see this.</span>}
         </span>
         {step === 3 && <span className="text-xs text-muted-foreground">Budget {money(budgetNum)}{mode === "fixed_extra" ? " extra" : ""}/mo · <span className="capitalize">{strategy}</span></span>}
       </div>
@@ -216,8 +228,8 @@ function ScenarioPage() {
           <div className="rounded-2xl border bg-card p-5 shadow-card sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold text-foreground">Add your cards</h2>
-                <p className="mt-1 text-sm text-muted-foreground">One card at a time. Minimum payment defaults are already filled in.</p>
+                <h2 className="text-lg font-semibold text-foreground">{cards.length ? "Add another card" : "Add your first card — no judgment, just a plan."}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Three quick details per card. You can change anything later.</p>
               </div>
               <CsvImportButton size="sm" onImport={importCsv} destinations={[
                 { value: "scenario", label: "This scenario only" },
@@ -227,21 +239,36 @@ function ScenarioPage() {
             </div>
             <div className="mt-3"><CsvHelpNote /></div>
             <form className="mt-5 grid gap-4 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); addCard(); }}>
-              <Field label="Card nickname" id="cname" className="sm:col-span-2">
-                <Input id="cname" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="e.g. Chase Freedom" />
+              <Field label="Card nickname" id="cname" className="sm:col-span-2" error={errFor("name")}>
+                <Input id="cname" value={draft.name} onBlur={() => touch("name")} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="e.g. Chase Freedom" aria-invalid={!!errFor("name")} />
               </Field>
-              <Field label="Current balance" id="cbal" prefix="$">
-                <Input id="cbal" type="number" inputMode="decimal" min="0" step="0.01" value={draft.balance} onChange={(e) => setDraft({ ...draft, balance: e.target.value })} className="pl-7" />
+              <Field label="Current balance" id="cbal" prefix="$" error={errFor("balance")}>
+                <Input id="cbal" type="number" inputMode="decimal" min="0" step="0.01" value={draft.balance} onBlur={() => touch("balance")} onChange={(e) => { touch("balance"); setDraft({ ...draft, balance: e.target.value }); }} className="pl-7 tabular-nums" aria-invalid={!!errFor("balance")} />
               </Field>
-              <Field label="Interest rate (APR)" id="capr" suffix="%">
-                <Input id="capr" type="number" inputMode="decimal" min="0" step="0.01" value={draft.apr} onChange={(e) => setDraft({ ...draft, apr: e.target.value })} className="pr-8" />
+              <Field label="Interest rate (APR)" id="capr" suffix="%" error={errFor("apr")}>
+                <Input id="capr" type="number" inputMode="decimal" min="0" step="0.01" value={draft.apr} onBlur={() => touch("apr")} onChange={(e) => { touch("apr"); setDraft({ ...draft, apr: e.target.value }); }} className="pr-8 tabular-nums" aria-invalid={!!errFor("apr")} />
               </Field>
-              <Field label="Minimum payment (% of balance)" id="cpct" suffix="%">
-                <Input id="cpct" type="number" inputMode="decimal" min="0" step="0.1" value={draft.min_pct} onChange={(e) => setDraft({ ...draft, min_pct: e.target.value })} className="pr-8" />
-              </Field>
-              <Field label="Minimum payment floor" id="cfloor" prefix="$">
-                <Input id="cfloor" type="number" inputMode="decimal" min="0" step="1" value={draft.min_floor} onChange={(e) => setDraft({ ...draft, min_floor: e.target.value })} className="pl-7" />
-              </Field>
+              <div className="sm:col-span-2">
+                <button type="button" onClick={() => setAdvanced((v) => !v)} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground" aria-expanded={advanced}>
+                  <ChevronDown className={cn("h-4 w-4 transition-transform duration-300", advanced && "rotate-180")} /> Advanced settings
+                  <span className="text-xs">({draft.min_pct}% · ${draft.min_floor} minimum)</span>
+                </button>
+                <AnimatePresence initial={false}>
+                  {advanced && (
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }} className="overflow-hidden">
+                      <div className="grid gap-4 pt-4 sm:grid-cols-2">
+                        <Field label="Minimum payment (% of balance)" id="cpct" suffix="%">
+                          <Input id="cpct" type="number" inputMode="decimal" min="0" step="0.1" value={draft.min_pct} onChange={(e) => setDraft({ ...draft, min_pct: e.target.value })} className="pr-8" />
+                        </Field>
+                        <Field label="Minimum payment floor" id="cfloor" prefix="$">
+                          <Input id="cfloor" type="number" inputMode="decimal" min="0" step="1" value={draft.min_floor} onChange={(e) => setDraft({ ...draft, min_floor: e.target.value })} className="pl-7" />
+                        </Field>
+                        <p className="text-xs text-muted-foreground sm:col-span-2">Most cards use this — check your statement if unsure.</p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
               <label className="flex items-center gap-2 text-sm text-muted-foreground sm:col-span-2">
                 <Checkbox checked={saveToLibrary} onCheckedChange={(v) => setSaveToLibrary(!!v)} />
                 Save this card to My Cards for next time
@@ -257,7 +284,7 @@ function ScenarioPage() {
           <div>
             <h3 className="text-sm font-medium text-muted-foreground">Your cards</h3>
             <ul className="mt-3 space-y-2">
-              {cards.length === 0 && <li className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">No cards added yet.</li>}
+              {cards.length === 0 && <li className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">Your cards will show up here as you add them.</li>}
               <AnimatePresence initial={true}>
               {cards.map((c, i) => (
                 <motion.li key={`${c.name}-${i}`} layout initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 12 }}
@@ -275,7 +302,7 @@ function ScenarioPage() {
               ))}
               </AnimatePresence>
             </ul>
-            <Button className="mt-4 w-full" disabled={!cards.length} onClick={() => setStep(2)}>
+            <Button size="lg" className="mt-4 w-full" disabled={!cards.length} onClick={() => setStep(2)}>
               Continue <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
@@ -324,7 +351,7 @@ function StepIndicator({ step, onJump }: { step: number; onJump: (s: number) => 
   );
 }
 
-function Field({ label, id, prefix, suffix, className, children }: { label: string; id: string; prefix?: string; suffix?: string; className?: string; children: React.ReactNode }) {
+function Field({ label, id, prefix, suffix, className, error, children }: { label: string; id: string; prefix?: string; suffix?: string; className?: string; error?: string; children: React.ReactNode }) {
   return (
     <div className={cn("space-y-1.5", className)}>
       <Label htmlFor={id}>{label}</Label>
@@ -333,6 +360,7 @@ function Field({ label, id, prefix, suffix, className, children }: { label: stri
         {children}
         {suffix && <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">{suffix}</span>}
       </div>
+      {error && <p className="text-xs text-warning" role="alert">{error}</p>}
     </div>
   );
 }
@@ -350,6 +378,7 @@ function BudgetStep(p: {
     <section className="mt-8 space-y-6 rounded-2xl border bg-card p-5 shadow-card sm:p-6">
       <div>
         <h2 className="text-lg font-semibold text-foreground">Set your budget and strategy</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Any amount above your minimums moves you forward faster.</p>
         <p className="mt-1 text-sm text-muted-foreground">Your minimums this month add up to <strong>{money(mins, true)}</strong>.</p>
       </div>
       <Field label="Scenario name" id="sname"><Input id="sname" value={p.name} onChange={(e) => p.setName(e.target.value)} /></Field>
@@ -370,8 +399,8 @@ function BudgetStep(p: {
         <Input id="budget" type="number" inputMode="decimal" min="0" step="1" value={p.budget} onChange={(e) => p.setBudget(e.target.value)} className="pl-7" />
       </Field>
       {tooLow && (
-        <p className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          <AlertTriangle className="h-4 w-4 shrink-0" /> That's below your {money(mins, true)} in minimums — raise it to see a plan.
+        <p className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-foreground" role="status">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-warning" /> This is a bit below your minimums ({money(mins, true)}) — add a little more or we can't build a plan.
         </p>
       )}
       <div className="space-y-2">
@@ -389,7 +418,7 @@ function BudgetStep(p: {
       </div>
       <div className="flex justify-between gap-3">
         <Button variant="outline" onClick={p.onBack}><ArrowLeft className="h-4 w-4" /> Back</Button>
-        <Button disabled={b <= 0} onClick={p.onNext}>See results <ArrowRight className="h-4 w-4" /></Button>
+        <Button size="lg" disabled={b <= 0 || tooLow} onClick={p.onNext}>See results <ArrowRight className="h-4 w-4" /></Button>
       </div>
     </section>
   );
@@ -434,6 +463,7 @@ function Results(p: { cards: CardInput[]; budget: number; mode: BudgetMode; stra
   }
 
   const saved = base.status === "ok" ? base.totalInterest - plan.totalInterest : null;
+  const firstClear = clearEvents(p.cards, plan.rows)[0];
 
   return (
     <section className="mt-8 space-y-6">
@@ -442,13 +472,19 @@ function Results(p: { cards: CardInput[]; budget: number; mode: BudgetMode; stra
         <div className="flex flex-wrap gap-2">
           {actions}
           <ShareButton plan={plan} saved={saved} />
-          <Button size="sm" onClick={p.onSave} disabled={p.saving}><Save className="h-4 w-4" /> {p.saving ? "Saving…" : "Save this scenario"}</Button>
+          <Button onClick={p.onSave} disabled={p.saving} className="glow-primary"><Save className="h-4 w-4" /> {p.saving ? "Saving…" : "Save this scenario"}</Button>
         </div>
       </div>
 
+      <p className="text-base text-foreground">
+        At this pace, you'll be debt-free by <strong>{monthLong(plan.months)}</strong>
+        {saved !== null && saved > 0 ? <> — and keep <strong className="tabular-nums">{money(saved)}</strong> you'd otherwise pay in interest.</> : "."}
+        {firstClear && plan.rows.length > 1 && <span className="text-muted-foreground"> Your first card, {firstClear.name}, is gone in {formatMonths(firstClear.month)}.</span>}
+      </p>
+
       <div className="grid gap-4 sm:grid-cols-3">
         <Stat label="Debt-free by" value={plan.months} format={(v) => monthLabel(v)} sub={formatMonths(plan.months)} highlight />
-        <Stat label="Interest saved vs. minimums" value={saved === null ? null : Math.max(0, saved)} format={(v) => money(v)}
+        <Stat label="Interest saved vs. minimums" highlight value={saved === null ? null : Math.max(0, saved)} format={(v) => money(v)}
           sub={base.status === "ok" ? `Minimums only: ${formatMonths(base.months)}` : "Minimums alone never pay it off"} />
         <Stat label="Total paid" value={plan.totalPaid} format={(v) => money(v)} sub={`${money(plan.totalInterest)} of that is interest`} />
       </div>
@@ -474,7 +510,7 @@ function Stat({ label, value, format, sub, highlight }: { label: string; value: 
   return (
     <div className={cn("rounded-2xl border p-5 shadow-card", highlight ? "border-primary/40 bg-primary/15" : "bg-card")}>
       <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className="mt-2 text-2xl font-semibold tracking-tight text-foreground tabular-nums">
+      <div className={cn("mt-2 font-semibold tracking-tight text-foreground tabular-nums", highlight ? "text-4xl sm:text-5xl" : "text-2xl")}>
         {value === null ? "—" : <CountUp value={value} format={format} />}
       </div>
       <div className="mt-1 text-xs text-muted-foreground">{sub}</div>
