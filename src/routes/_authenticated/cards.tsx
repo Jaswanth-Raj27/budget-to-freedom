@@ -85,11 +85,11 @@ function CardsPage() {
       <div className="mt-3"><CsvHelpNote /></div>
 
       <div className="mt-8 space-y-3">
-        {isLoading && <div className="h-20 animate-pulse rounded-2xl bg-muted" />}
+        {isLoading && <p className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground animate-pulse">Loading your cards…</p>}
         {data && data.length === 0 && (
           <div className="rounded-2xl border border-dashed bg-card p-10 text-center shadow-card">
             <CreditCard className="mx-auto h-6 w-6 text-accent" />
-            <p className="mt-3 text-sm text-muted-foreground">No cards saved yet — add one here, or save one while building a scenario.</p>
+            <p className="mt-3 text-sm text-muted-foreground">No cards saved yet — add one here, or save one while building a scenario. No judgment, just a plan.</p>
           </div>
         )}
         <AnimatePresence initial={true}>

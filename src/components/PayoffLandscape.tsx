@@ -3,7 +3,7 @@ import { useReducedMotion } from "motion/react";
 import { Pause, Play } from "lucide-react";
 import { Area, ComposedChart, Line, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { money, type CardInput, type SimResult } from "@/lib/simulate";
-import { cardColor, clearEvents, monthLabel, monthLong, niceTicks } from "@/lib/plan-utils";
+import { cardColor, clearEvents, progressMilestones, monthLabel, monthLong, niceTicks } from "@/lib/plan-utils";
 import { Button } from "@/components/ui/button";
 
 interface Props {
@@ -52,6 +52,7 @@ export function PayoffLandscape({ cards, plan, base, boosted, compact }: Props) 
   }, [cards, plan, base, boosted, len, planLen, boostLen, total0]);
 
   const events = useMemo(() => clearEvents(cards, plan.rows), [cards, plan.rows]);
+  const marks = useMemo(() => progressMilestones(total0, plan.rows), [total0, plan.rows]);
 
   // Playback / scrubber
   const [cursor, setCursor] = useState<number | null>(null);
@@ -131,6 +132,10 @@ export function PayoffLandscape({ cards, plan, base, boosted, compact }: Props) 
             ))}
             {events.filter((e) => e.month < planLen).map((e) => (
               <ReferenceDot key={`d${e.card}`} x={e.month} y={Number(data[e.month]?.plan ?? 0)} r={4} fill="var(--primary)" stroke="var(--background)" strokeWidth={2} filter="url(#glow)" />
+            ))}
+            {marks.map((mk) => (
+              <ReferenceDot key={`p${mk.pct}`} x={mk.month} y={Number(data[mk.month]?.plan ?? 0)} r={3} fill="var(--accent)" stroke="var(--background)" strokeWidth={1.5}
+                {...(compact ? {} : { label: { value: `${mk.pct}% paid off`, position: "right", fill: "var(--accent)", fontSize: 10, dx: 4 } })} />
             ))}
             <ReferenceDot x={planLen} y={0} r={7} fill="var(--primary)" stroke="var(--foreground)" strokeWidth={2} filter="url(#glow)"
               label={{ value: `Debt-free · ${monthLabel(planLen)}`, position: "top", fill: "var(--foreground)", fontSize: 11, fontWeight: 600, dy: -6 }} />

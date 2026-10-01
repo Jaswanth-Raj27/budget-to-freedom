@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { LogOut, Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { ActivePlanProgress } from "@/components/PlanProgress";
 
 export function LogoMark({ size = 32 }: { size?: number }) {
   return (
@@ -37,6 +38,7 @@ export function AppHeader() {
     <header className="sticky top-0 z-20 border-b bg-background/80 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
         <Link to="/dashboard"><Logo /></Link>
+        <ActivePlanProgress />
         <nav className="flex items-center gap-1">
           <Button asChild variant="ghost" size="sm" className={linkCls}>
             <Link to="/dashboard">Dashboard</Link>
