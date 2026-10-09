@@ -11,3 +11,6 @@
 
 - Animations use the `motion` package (motion/react) and must respect useReducedMotion — consistent spring/ease-out feel.
 - Saved-card library (`saved_cards`) is copied by value into scenarios — editing a library card never touches scenario cards.
+- Shared visual roles are defined in src/styles.css and consumed by UI components; this keeps all product screens consistent when the palette changes.
+- Use the shared Reveal wrapper for offscreen entrance groups and MotionConfig for reduced-motion defaults; content remains visible without JavaScript.
+- Content routes use pageMeta or equivalent complete leaf metadata; each screen retains its own search and social identity.
