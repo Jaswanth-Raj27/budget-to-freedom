@@ -1,7 +1,8 @@
+import { pageMeta } from "@/lib/page-meta";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { CreditCard, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,7 +14,7 @@ import { CsvHelpNote, CsvImportButton } from "@/components/CsvImport";
 import { money } from "@/lib/simulate";
 
 export const Route = createFileRoute("/_authenticated/cards")({
-  head: () => ({ meta: [{ title: "My Cards — Debt Free Buddy" }, { name: "description", content: "Your saved card library for quick scenario building." }] }),
+  head: () => pageMeta("My Cards", "Manage your private card library and reuse balances and rates in your payoff plans."),
   component: CardsPage,
 });
 
@@ -32,6 +33,7 @@ export function useSavedCards() {
 }
 
 function CardsPage() {
+  const reduce = useReducedMotion();
   const qc = useQueryClient();
   const { data, isLoading } = useSavedCards();
   const [editing, setEditing] = useState<{ id: string | null; draft: Draft } | null>(null);
@@ -69,7 +71,7 @@ function CardsPage() {
     <div>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">My Cards</h1>
+          <h1 className="text-4xl text-foreground">My Cards</h1>
           <p className="mt-1 text-sm text-muted-foreground">Save cards once, reuse them in any scenario.</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -84,19 +86,19 @@ function CardsPage() {
       </div>
       <div className="mt-3"><CsvHelpNote /></div>
 
-      <div className="mt-8 space-y-3">
+      <div className="mt-8 border-t">
         {isLoading && <p className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground animate-pulse">Loading your cards…</p>}
         {data && data.length === 0 && (
-          <div className="rounded-2xl border border-dashed bg-card p-10 text-center shadow-card">
+          <div className="border-b py-12 text-center">
             <CreditCard className="mx-auto h-6 w-6 text-accent" />
             <p className="mt-3 text-sm text-muted-foreground">No cards saved yet — add one here, or save one while building a scenario. No judgment, just a plan.</p>
           </div>
         )}
         <AnimatePresence initial={true}>
           {data?.map((c, i) => (
-            <motion.div key={c.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            <motion.div key={c.id} layout initial={reduce ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
               transition={{ duration: 0.3, delay: Math.min(i, 8) * 0.05 }}
-              className="flex items-center gap-4 rounded-2xl border bg-card p-4 shadow-card sm:p-5">
+              className="ledger-row grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-2 p-4 sm:gap-4 sm:p-5">
               <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/15"><CreditCard className="h-4 w-4 text-accent" /></div>
               <div className="min-w-0 flex-1">
                 <div className="truncate font-medium">{c.name}</div>

@@ -1,3 +1,4 @@
+import { pageMeta } from "@/lib/page-meta";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -14,7 +15,7 @@ import {
 import { deleteMyAccount } from "@/lib/account.functions";
 
 export const Route = createFileRoute("/_authenticated/settings")({
-  head: () => ({ meta: [{ title: "Account settings — Debt Free Buddy" }] }),
+  head: () => pageMeta("Account settings", "Manage your Debt Free Buddy profile, password, and account."),
   component: Settings,
 });
 
@@ -57,10 +58,10 @@ function Settings() {
     }
   }
 
-  const section = "rounded-2xl border bg-card p-6 shadow-card";
+  const section = "open-section";
   return (
-    <div className="mx-auto max-w-xl space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight text-foreground">Account settings</h1>
+    <div className="mx-auto max-w-2xl space-y-6">
+      <h1 className="text-4xl text-foreground">Account settings</h1>
       <form onSubmit={saveName} className={section}>
         <h2 className="font-semibold text-foreground">Profile</h2>
         <p className="text-sm text-muted-foreground">{user.email}</p>
@@ -68,7 +69,7 @@ function Settings() {
           <Label htmlFor="name">Full name</Label>
           <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
-        <Button className="mt-4">Save name</Button>
+        <Button variant="outline" className="mt-4">Save name</Button>
       </form>
       <form onSubmit={savePw} className={section}>
         <h2 className="font-semibold text-foreground">Change password</h2>
@@ -76,7 +77,7 @@ function Settings() {
           <Label htmlFor="pw">New password</Label>
           <Input id="pw" type="password" minLength={6} value={pw} onChange={(e) => setPw(e.target.value)} required />
         </div>
-        <Button className="mt-4">Update password</Button>
+        <Button variant="outline" className="mt-4">Update password</Button>
       </form>
       <div className={`${section} border-destructive/30`}>
         <h2 className="font-semibold text-destructive">Delete account</h2>

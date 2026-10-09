@@ -1,3 +1,4 @@
+import { pageMeta } from "@/lib/page-meta";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -8,14 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/AppHeader";
 
 export const Route = createFileRoute("/forgot-password")({
-  head: () => ({
-    meta: [
-      { title: "Reset your password — Debt Free Buddy" },
-      { name: "description", content: "Get a link to reset your Debt Free Buddy password." },
-      { property: "og:title", content: "Reset your password — Debt Free Buddy" },
-      { property: "og:description", content: "Get a link to reset your password." },
-    ],
-  }),
+  head: () => pageMeta("Reset your password", "Request a secure link to reset your Debt Free Buddy password."),
   component: Forgot,
 });
 
@@ -37,8 +31,8 @@ function Forgot() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center app-backdrop px-4">
       <Link to="/" className="mb-8"><Logo /></Link>
-      <div className="w-full max-w-sm rounded-2xl border bg-card p-6 shadow-card sm:p-8">
-        <h1 className="text-xl font-semibold text-foreground">Forgot your password?</h1>
+      <div className="w-full max-w-md auth-panel bg-card p-7 sm:p-9">
+        <h1 className="editorial-title text-3xl text-foreground">Forgot your password?</h1>
         {sent ? (
           <p className="mt-2 text-sm text-muted-foreground">If an account exists for {email}, a reset link is on its way.</p>
         ) : (
