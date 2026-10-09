@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, animate, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, animate, motion, useReducedMotion, useInView } from "motion/react";
 import { Check, ChevronDown, Download, Link2, Share2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { toPng } from "html-to-image";
@@ -13,14 +13,16 @@ import { cn } from "@/lib/utils";
 
 export function CountUp({ value, format }: { value: number; format: (v: number) => string }) {
   const reduce = useReducedMotion();
-  const [v, setV] = useState(reduce ? value : 0);
+  const anchor = useRef<HTMLSpanElement>(null);
+  const visible = useInView(anchor, { once: true });
+  const [v, setV] = useState(value);
   const prev = useRef(0);
   useEffect(() => {
-    if (reduce) { setV(value); return; }
+    if (reduce || !visible) { setV(value); return; }
     const c = animate(prev.current, value, { duration: 0.8, ease: [0.22, 1, 0.36, 1], onUpdate: (x) => { prev.current = x; setV(x); } });
     return () => c.stop();
-  }, [value, reduce]);
-  return <>{format(Math.round(v))}</>;
+  }, [value, reduce, visible]);
+  return <span ref={anchor}>{format(Math.round(v))}</span>;
 }
 
 /* ---------------- What if I paid more? ---------------- */
@@ -30,9 +32,9 @@ export function WhatIf(p: {
 }) {
   const better = p.boosted?.status === "ok" ? { months: p.plan.months - p.boosted.months, interest: p.plan.totalInterest - p.boosted.totalInterest } : null;
   return (
-    <div className="rounded-2xl border bg-card p-5 shadow-card sm:p-6">
+    <div className="open-section">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="font-semibold text-foreground">What if I paid more?</h3>
+        <h3 className="editorial-title text-2xl text-foreground">A little extra. A little sooner.</h3>
         {p.extra > 0 && (
           <Button size="sm" variant="outline" onClick={() => p.onApply(p.budget + p.extra)}>
             Apply to this scenario
@@ -106,8 +108,8 @@ export function CompareStrategies(p: { cards: CardInput[]; budget: number; mode:
     { label: "Total paid", get: (c) => money(c.r.totalPaid), win: best(s.r.totalPaid, a.r.totalPaid) },
   ];
   const col = (c: typeof a, side: "a" | "b", title: string, blurb: string) => (
-    <div className={cn("rounded-xl border p-4", p.strategy === c.s ? "border-primary/60 bg-primary/10" : "bg-background/40")}>
-      <div className="flex items-center justify-between gap-2">
+    <div className={cn("min-w-0 rounded-md border-t-2 p-4 sm:p-5", p.strategy === c.s ? "border-primary/60 bg-primary/10" : "bg-background/40")}>
+      <div className="grid gap-3 sm:flex sm:items-center sm:justify-between">
         <div>
           <div className="font-semibold text-foreground">{title}</div>
           <div className="text-xs text-muted-foreground">{blurb}</div>
@@ -117,7 +119,7 @@ export function CompareStrategies(p: { cards: CardInput[]; budget: number; mode:
       </div>
       <dl className="mt-4 space-y-2 text-sm">
         {rows.map((r) => (
-          <div key={r.label} className="flex items-center justify-between gap-2">
+          <div key={r.label} className="grid gap-3 sm:flex sm:items-center sm:justify-between">
             <dt className="text-muted-foreground">{r.label}</dt>
             <dd className="flex items-center gap-1.5 font-medium tabular-nums text-foreground">
               {r.get(c)}
@@ -135,8 +137,8 @@ export function CompareStrategies(p: { cards: CardInput[]; budget: number; mode:
     </div>
   );
   return (
-    <div className="rounded-2xl border bg-card p-5 shadow-card sm:p-6">
-      <h3 className="font-semibold text-foreground">Compare strategies</h3>
+    <div className="open-section">
+      <h3 className="editorial-title text-2xl text-foreground">Compare strategies</h3>
       <p className="mt-1 text-sm text-foreground/90">{verdict}</p>
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         {col(s, "a", "Snowball", "Smallest balance first")}
@@ -183,9 +185,9 @@ export function PaymentTimeline({ cards, plan, name }: { cards: CardInput[]; pla
   const chip = (active: boolean) => cn("rounded-full border px-3 py-1 text-xs transition-colors", active ? "border-primary bg-primary/15 text-foreground" : "text-muted-foreground hover:text-foreground");
 
   return (
-    <div className="rounded-2xl border bg-card shadow-card">
+    <div className="open-section">
       <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:px-6">
-        <h3 className="font-semibold text-foreground">Payment timeline</h3>
+        <h3 className="editorial-title text-2xl text-foreground">Payment timeline</h3>
         <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-lg border p-0.5 text-xs">
             {(["timeline", "table"] as const).map((v) => (
@@ -253,7 +255,7 @@ export function PaymentTimeline({ cards, plan, name }: { cards: CardInput[]; pla
                         return (
                           <motion.li key={r.month} initial={reduce ? false : { opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: Math.min(k, 12) * 0.03 }}
                             className={cn("relative ml-6 grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1.5 border-l py-2.5 pl-5 pr-4 sm:ml-9 sm:grid-cols-[90px_110px_1fr_auto] sm:pr-6",
-                              r.cleared.length && "rounded-r-lg bg-primary/10 shadow-[0_0_24px_-8px_var(--primary)]")}>
+                              r.cleared.length && "rounded-r-md bg-secondary")}>
                             <span className="absolute -left-[4px] top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-border" />
                             <span className="text-sm text-foreground">{r.date.toLocaleDateString("en-US", { month: "long" })}</span>
                             <span className="text-right text-sm tabular-nums text-foreground sm:text-left">{money(r.paid, true)}</span>
@@ -316,13 +318,13 @@ export function ShareButton({ plan, saved }: { plan: SimResult; saved: number | 
       <DialogTrigger asChild><Button size="sm" variant="outline"><Share2 className="h-4 w-4" /> Share</Button></DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader><DialogTitle>Share your plan</DialogTitle></DialogHeader>
-        <div ref={ref} className="overflow-hidden rounded-2xl border bg-background p-6" style={{ backgroundImage: "radial-gradient(400px 240px at 90% 0%, color-mix(in oklab, var(--primary) 22%, transparent), transparent 70%)" }}>
+        <div ref={ref} className="overflow-hidden rounded-md border-t-4 border-primary bg-background p-6" >
           <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><LogoMark size={24} /> Debt Free Buddy</div>
           <div className="mt-6 text-xs uppercase tracking-widest text-primary">My debt-free date</div>
           <div className="mt-1 text-3xl font-semibold tracking-tight text-foreground">{monthLong(plan.months)}</div>
           <div className="mt-6 grid grid-cols-2 gap-3">
-            <div className="rounded-xl border bg-card p-3"><div className="text-xs text-muted-foreground">Months to go</div><div className="text-xl font-semibold tabular-nums text-foreground">{plan.months}</div></div>
-            <div className="rounded-xl border bg-card p-3"><div className="text-xs text-muted-foreground">Interest saved</div><div className="text-xl font-semibold tabular-nums text-foreground">{saved !== null && saved > 0 ? money(saved) : "—"}</div></div>
+            <div className="border-t py-3"><div className="text-xs text-muted-foreground">Months to go</div><div className="text-xl font-semibold tabular-nums text-foreground">{plan.months}</div></div>
+            <div className="border-t py-3"><div className="text-xs text-muted-foreground">Interest saved</div><div className="text-xl font-semibold tabular-nums text-foreground">{saved !== null && saved > 0 ? money(saved) : "—"}</div></div>
           </div>
           <div className="mt-5 flex items-center gap-1.5 text-xs text-muted-foreground"><Sparkles className="h-3.5 w-3.5 text-accent" /> Plan yours free at Debt Free Buddy</div>
         </div>
