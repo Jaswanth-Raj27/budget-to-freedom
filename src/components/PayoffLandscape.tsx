@@ -38,7 +38,7 @@ export function PayoffLandscape({ cards, plan, base, boosted, compact }: Props) 
         cards.forEach((c, i) => {
           const v = m === 0 ? c.balance : (r?.balances[i] ?? 0);
           row[`c${i}`] = v;
-          planTotal! += v;
+          planTotal += v;
         });
         row.plan = planTotal;
       }
@@ -80,7 +80,8 @@ export function PayoffLandscape({ cards, plan, base, boosted, compact }: Props) 
   const fmtY = (v: number) => (yMax >= 10000 ? `$${(v / 1000).toLocaleString()}k` : money(v));
 
   const gapMid = Math.min(len, Math.round(planLen * 0.9));
-  const gapY = data[gapMid] ? (Number((data[gapMid]!.min as number) ?? 0) + Number(data[gapMid]!.plan ?? 0)) / 2 : 0;
+  const gapPoint = data[gapMid];
+  const gapY = gapPoint ? (Number(gapPoint.min ?? 0) + Number(gapPoint.plan ?? 0)) / 2 : 0;
 
   return (
     <div>
@@ -90,8 +91,8 @@ export function PayoffLandscape({ cards, plan, base, boosted, compact }: Props) 
             <defs>
               {cards.map((_, i) => (
                 <linearGradient key={i} id={`lg-c${i}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" style={{ stopColor: cardColor(i, n), stopOpacity: 0.55 }} />
-                  <stop offset="100%" style={{ stopColor: cardColor(i, n), stopOpacity: 0.08 }} />
+                  <stop offset="0%" style={{ stopColor: cardColor(i, n), stopOpacity: 0.32 }} />
+                  <stop offset="100%" style={{ stopColor: cardColor(i, n), stopOpacity: 0.12 }} />
                 </linearGradient>
               ))}
               <linearGradient id="lg-gap" x1="0" y1="0" x2="0" y2="1">
@@ -104,8 +105,8 @@ export function PayoffLandscape({ cards, plan, base, boosted, compact }: Props) 
               </filter>
             </defs>
             <XAxis dataKey="m" type="number" domain={[0, len]} ticks={xTicks} tickFormatter={(m) => monthLabel(m)}
-              tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
-            <YAxis ticks={yTicks} domain={[0, yTicks[yTicks.length - 1]!]} tickFormatter={fmtY} width={compact ? 52 : 60}
+              tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} minTickGap={45} />
+            <YAxis ticks={yTicks} domain={[0, yTicks[yTicks.length - 1] ?? yMax]} tickFormatter={fmtY} width={compact ? 52 : 60}
               tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
             {yTicks.slice(1).map((t) => <ReferenceLine key={t} y={t} stroke="var(--border)" strokeOpacity={0.6} />)}
             <Tooltip content={<GlassTip cards={cards} />} cursor={{ stroke: "var(--accent)", strokeOpacity: 0.35, strokeWidth: 1 }} />
@@ -116,10 +117,10 @@ export function PayoffLandscape({ cards, plan, base, boosted, compact }: Props) 
                 strokeLinecap="round" strokeLinejoin="round" fill={`url(#lg-c${i})`}
                 isAnimationActive={!reduce && cursor === null} animationDuration={1200} animationEasing="ease-out" activeDot={false} />
             ))}
-            <Line dataKey="min" type="monotone" stroke="var(--accent)" strokeOpacity={0.55} strokeWidth={1.5} strokeDasharray="5 5" dot={false}
+            <Line dataKey="min" type="monotone" stroke="var(--muted-foreground)" strokeOpacity={0.7} strokeWidth={1.5} strokeDasharray="5 5" dot={false}
               isAnimationActive={!reduce && cursor === null} animationDuration={1200} activeDot={false} />
             {boosted?.status === "ok" && (
-              <Line dataKey="boost" type="monotone" stroke="var(--primary)" strokeWidth={2.5} strokeLinecap="round" dot={false} filter="url(#glow)"
+              <Line dataKey="boost" type="monotone" stroke="var(--primary)" strokeWidth={2.5} strokeLinecap="round" dot={false} 
                 isAnimationActive={false} activeDot={false} />
             )}
 
@@ -131,13 +132,13 @@ export function PayoffLandscape({ cards, plan, base, boosted, compact }: Props) 
                 {...(compact ? {} : { label: { value: `${e.name} cleared`, position: "top", fill: "var(--muted-foreground)", fontSize: 10, dy: (k % 2) * 12 } })} />
             ))}
             {events.filter((e) => e.month < planLen).map((e) => (
-              <ReferenceDot key={`d${e.card}`} x={e.month} y={Number(data[e.month]?.plan ?? 0)} r={4} fill="var(--primary)" stroke="var(--background)" strokeWidth={2} filter="url(#glow)" />
+              <ReferenceDot key={`d${e.card}`} x={e.month} y={Number(data[e.month]?.plan ?? 0)} r={4} fill="var(--primary)" stroke="var(--background)" strokeWidth={2}  />
             ))}
             {marks.map((mk) => (
               <ReferenceDot key={`p${mk.pct}`} x={mk.month} y={Number(data[mk.month]?.plan ?? 0)} r={3} fill="var(--accent)" stroke="var(--background)" strokeWidth={1.5}
                 {...(compact ? {} : { label: { value: `${mk.pct}% paid off`, position: "right", fill: "var(--accent)", fontSize: 10, dx: 4 } })} />
             ))}
-            <ReferenceDot x={planLen} y={0} r={7} fill="var(--primary)" stroke="var(--foreground)" strokeWidth={2} filter="url(#glow)"
+            <ReferenceDot x={planLen} y={0} r={7} fill="var(--primary)" stroke="var(--foreground)" strokeWidth={2} 
               label={{ value: `Debt-free · ${monthLabel(planLen)}`, position: "top", fill: "var(--foreground)", fontSize: 11, fontWeight: 600, dy: -6 }} />
             {cursor !== null && <ReferenceLine x={cursor} stroke="var(--primary)" strokeWidth={1.5} />}
           </ComposedChart>
@@ -159,7 +160,7 @@ export function PayoffLandscape({ cards, plan, base, boosted, compact }: Props) 
           {cursor === null ? `${planLen} months · ${monthLabel(planLen)}` : `Month ${cursor} · ${money(cursorLeft ?? 0)} left`}
         </span>
         {cursor !== null && !playing && (
-          <button className="text-xs text-muted-foreground underline-offset-4 hover:underline" onClick={() => setCursor(null)}>Reset</button>
+          <Button variant="ghost" size="sm" onClick={() => setCursor(null)}>Reset</Button>
         )}
       </div>
       {!compact && (
@@ -178,7 +179,8 @@ export function PayoffLandscape({ cards, plan, base, boosted, compact }: Props) 
 
 function GlassTip({ active, payload, label, cards }: { active?: boolean; payload?: { payload: Row }[]; label?: number; cards: CardInput[] }) {
   if (!active || !payload?.length) return null;
-  const r = payload[0]!.payload;
+  const r = payload[0]?.payload;
+  if (!r) return null;
   if (r.plan === undefined) {
     return (
       <div className="rounded-xl border border-border/60 bg-card/70 px-3 py-2 text-xs shadow-card backdrop-blur-md">

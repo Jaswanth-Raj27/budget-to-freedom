@@ -21,10 +21,9 @@ export function clearEvents(cards: CardInput[], rows: MonthRow[]): ClearEvent[] 
   return out.sort((a, b) => a.month - b.month || a.card - b.card);
 }
 
-/** Tint for card i: steel blue → silver. */
-export function cardColor(i: number, n: number) {
-  const t = n <= 1 ? 0 : Math.round((i / (n - 1)) * 100);
-  return `color-mix(in oklab, var(--primary) ${100 - t}%, var(--accent))`;
+/** Distinct semantic tints keep each card readable on paper surfaces. */
+export function cardColor(i: number, _n: number) {
+  return `var(--chart-${(i % 5) + 1})`;
 }
 
 /** Nice round axis ticks from 0 to >= max. */

@@ -32,7 +32,7 @@ export function ActivePlanProgress() {
   const r = simulate(cards, Number(data.budget), data.budget_mode as BudgetMode, data.strategy as Strategy);
   if (r.status !== "ok" || !r.months) return null;
   return (
-    <Link to="/scenario/$id" params={{ id: data.id }} className="hidden rounded-lg px-2 py-1 hover:bg-muted/50 md:block" aria-label="Open your active plan">
+    <Link to="/scenario/$id" params={{ id: data.id }} className="hidden px-2 py-1 hover:bg-secondary lg:block" aria-label="Open your active plan">
       <ProgressBar compact elapsed={monthsElapsed(data.created_at)} total={r.months} />
     </Link>
   );
@@ -41,7 +41,7 @@ export function ActivePlanProgress() {
 export function Crunching({ label = "Crunching your numbers…" }: { label?: string }) {
   const reduce = useReducedMotion();
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border bg-card p-10 shadow-card" role="status">
+    <div className="flex flex-col items-center justify-center gap-3 border-y py-12" role="status">
       <span className="text-sm text-muted-foreground">{label}</span>
       <div className="h-1 w-40 overflow-hidden rounded-full bg-muted">
         <motion.div className="h-full rounded-full bg-primary" initial={{ width: "10%" }} animate={reduce ? { width: "60%" } : { width: ["10%", "90%"] }}

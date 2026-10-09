@@ -1,3 +1,4 @@
+import { pageMeta } from "@/lib/page-meta";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -8,14 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/AppHeader";
 
 export const Route = createFileRoute("/reset-password")({
-  head: () => ({
-    meta: [
-      { title: "Choose a new password — Debt Free Buddy" },
-      { name: "description", content: "Set a new password for your Debt Free Buddy account." },
-      { property: "og:title", content: "Choose a new password — Debt Free Buddy" },
-      { property: "og:description", content: "Set a new password for your account." },
-    ],
-  }),
+  head: () => pageMeta("Choose a new password", "Set a new password for your Debt Free Buddy account."),
   component: Reset,
 });
 
@@ -35,8 +29,8 @@ function Reset() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center app-backdrop px-4">
       <div className="mb-8"><Logo /></div>
-      <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-2xl border bg-card p-6 shadow-card sm:p-8">
-        <h1 className="text-xl font-semibold text-foreground">Choose a new password</h1>
+      <form onSubmit={submit} className="w-full max-w-md space-y-4 auth-panel bg-card p-7 sm:p-9">
+        <h1 className="editorial-title text-3xl text-foreground">Choose a new password</h1>
         <div className="space-y-1.5">
           <Label htmlFor="pw">New password</Label>
           <Input id="pw" type="password" minLength={6} required value={pw} onChange={(e) => setPw(e.target.value)} />

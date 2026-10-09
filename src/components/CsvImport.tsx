@@ -14,7 +14,7 @@ export type ImportDestination = "saved" | "scenario" | "both";
 export function CsvHelpNote() {
   return (
     <p className="flex items-start gap-2 text-xs text-muted-foreground">
-      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
+      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
       Export a statement or account summary CSV from your bank's website — we only read balance and rate info, nothing else.
     </p>
   );
@@ -63,7 +63,7 @@ export function CsvImportButton({
     }
   }
 
-  const cell = "h-8 px-2 text-xs";
+  const cell = "h-9 px-2 text-xs tabular-nums";
 
   return (
     <>
@@ -86,11 +86,11 @@ export function CsvImportButton({
                 onDragLeave={() => setDrag(false)}
                 onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files[0]; if (f) readFile(f); }}
                 className={cn(
-                  "flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-10 text-center",
+                  "flex w-full flex-col items-center justify-center gap-2 rounded-md border border-dashed bg-secondary/40 p-8 text-center",
                   drag ? "border-primary bg-primary/10" : "hover:border-primary/60 hover:bg-muted/40",
                 )}
               >
-                <Upload className="h-6 w-6 text-accent" />
+                <Upload className="h-6 w-6 text-primary" />
                 <span className="text-sm font-medium">Drop a CSV here, or click to choose a file</span>
                 <span className="text-xs text-muted-foreground">Columns like name, balance, APR, minimum % and minimum payment</span>
               </button>

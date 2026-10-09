@@ -1,3 +1,5 @@
+import { pageMeta } from "@/lib/page-meta";
+import { Reveal } from "@/components/Reveal";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
@@ -26,13 +28,15 @@ const stepMotion = {
 };
 
 export const Route = createFileRoute("/_authenticated/scenario/$id")({
-  head: () => ({ meta: [{ title: "Payoff plan — Debt Free Buddy" }] }),
+  head: () => pageMeta("Your payoff plan", "Explore your debt-free date, compare repayment strategies, and review your monthly payment timeline."),
   component: ScenarioPage,
 });
 
 const emptyDraft = { name: "", balance: "", apr: "", min_pct: "2", min_floor: "25" };
 
 function ScenarioPage() {
+  const reduce = useReducedMotion();
+  const transitionProps = reduce ? { initial: false as const, animate: { opacity: 1 }, exit: { opacity: 1 }, transition: { duration: 0 } } : stepMotion;
   const { id } = Route.useParams();
   const isNew = id === "new";
   const navigate = useNavigate();
@@ -191,7 +195,7 @@ function ScenarioPage() {
 
       <StepIndicator step={step} onJump={(s) => (s < step || (s === 2 && cards.length) || (s === 3 && cards.length && budgetNum > 0)) && setStep(s)} />
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card px-4 py-3 shadow-card">
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-y py-4">
         <span className="text-sm text-muted-foreground">
           Total debt: <strong className="text-foreground tabular-nums">{money(totalDebt, true)}</strong> across {cards.length} card{cards.length === 1 ? "" : "s"}
           {step === 1 && <span className="mt-0.5 block text-xs">Only you can see this.</span>}
@@ -201,10 +205,10 @@ function ScenarioPage() {
 
       <AnimatePresence mode="wait" initial={false}>
       {step === 1 && (
-        <motion.section key="s1" {...stepMotion} className="mt-8 grid gap-6 lg:grid-cols-[1fr_320px]">
+        <motion.section key="s1" {...transitionProps} className="mt-8 grid gap-6 lg:grid-cols-[1fr_320px]">
           <div className="space-y-6">
             {savedCards && savedCards.length > 0 && (
-              <div className="rounded-2xl border bg-card p-5 shadow-card sm:p-6">
+              <div className="open-section">
                 <h2 className="text-lg font-semibold text-foreground">Choose from my cards</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Tap a card to copy it into this scenario. You can still edit it here without changing your library.</p>
                 <ul className="mt-4 space-y-2">
@@ -225,7 +229,7 @@ function ScenarioPage() {
                 </ul>
               </div>
             )}
-          <div className="rounded-2xl border bg-card p-5 shadow-card sm:p-6">
+          <div className="open-section">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold text-foreground">{cards.length ? "Add another card" : "Add your first card — no judgment, just a plan."}</h2>
@@ -255,7 +259,7 @@ function ScenarioPage() {
                 </button>
                 <AnimatePresence initial={false}>
                   {advanced && (
-                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }} className="overflow-hidden">
+                    <motion.div initial={reduce ? false : { height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }} className="overflow-hidden">
                       <div className="grid gap-4 pt-4 sm:grid-cols-2">
                         <Field label="Minimum payment (% of balance)" id="cpct" suffix="%">
                           <Input id="cpct" type="number" inputMode="decimal" min="0" step="0.1" value={draft.min_pct} onChange={(e) => setDraft({ ...draft, min_pct: e.target.value })} className="pr-8" />
@@ -287,7 +291,7 @@ function ScenarioPage() {
               {cards.length === 0 && <li className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">Your cards will show up here as you add them.</li>}
               <AnimatePresence initial={true}>
               {cards.map((c, i) => (
-                <motion.li key={`${c.name}-${i}`} layout initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 12 }}
+                <motion.li key={`${c.name}-${i}`} layout={!reduce} initial={reduce ? false : { opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 12 }}
                   transition={{ duration: 0.25, delay: Math.min(i, 8) * 0.04 }}
                   className="flex items-center gap-3 rounded-xl border bg-card p-3 shadow-card">
                   <CreditCard className="h-4 w-4 shrink-0 text-accent" />
@@ -310,7 +314,7 @@ function ScenarioPage() {
       )}
 
       {step === 2 && (
-        <motion.div key="s2" {...stepMotion}>
+        <motion.div key="s2" {...transitionProps}>
         <BudgetStep
           {...{ name, setName, budget, setBudget, mode, setMode, strategy, setStrategy, cards }}
           onBack={() => setStep(1)}
@@ -320,7 +324,7 @@ function ScenarioPage() {
       )}
 
       {step === 3 && (
-        <motion.div key="s3" {...stepMotion}>
+        <motion.div key="s3" {...transitionProps}>
         <Results cards={cards} budget={budgetNum} mode={mode} strategy={strategy} name={name} saving={saving}
           onSave={save} onApplyBudget={applyBudget} onUseStrategy={pickStrategy} onEdit={() => setStep(1)} onBudget={() => setStep(2)} />
         </motion.div>
@@ -338,7 +342,7 @@ function StepIndicator({ step, onJump }: { step: number; onJump: (s: number) => 
       <ol className="mt-2 grid grid-cols-3 gap-2">
         {labels.map((l, i) => (
           <li key={l}>
-            <button type="button" onClick={() => onJump(i + 1)} className="w-full text-left">
+            <button type="button" onClick={() => onJump(i + 1)} aria-current={i + 1 === step ? "step" : undefined} className="w-full text-left">
               <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                 <div className={cn("h-full rounded-full bg-primary transition-all duration-500", i + 1 <= step ? "w-full" : "w-0")} />
               </div>
@@ -375,7 +379,7 @@ function BudgetStep(p: {
   const tooLow = p.mode === "fixed_total" && b > 0 && b < mins;
   const opt = (active: boolean) => cn("rounded-xl border p-4 text-left transition-colors", active ? "border-primary bg-primary/10 ring-1 ring-primary" : "bg-card hover:bg-muted/50");
   return (
-    <section className="mt-8 space-y-6 rounded-2xl border bg-card p-5 shadow-card sm:p-6">
+    <section className="mt-8 space-y-6 open-section">
       <div>
         <h2 className="text-lg font-semibold text-foreground">Set your budget and strategy</h2>
         <p className="mt-1 text-sm text-muted-foreground">Any amount above your minimums moves you forward faster.</p>
@@ -468,11 +472,11 @@ function Results(p: { cards: CardInput[]; budget: number; mode: BudgetMode; stra
   return (
     <section className="mt-8 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-foreground">{p.name}</h2>
+        <h2 className="editorial-title text-3xl text-foreground">{p.name}</h2>
         <div className="flex flex-wrap gap-2">
           {actions}
           <ShareButton plan={plan} saved={saved} />
-          <Button onClick={p.onSave} disabled={p.saving} className="glow-primary"><Save className="h-4 w-4" /> {p.saving ? "Saving…" : "Save this scenario"}</Button>
+          <Button onClick={p.onSave} disabled={p.saving} className="shadow-sm"><Save className="h-4 w-4" /> {p.saving ? "Saving…" : "Save this scenario"}</Button>
         </div>
       </div>
 
@@ -482,7 +486,7 @@ function Results(p: { cards: CardInput[]; budget: number; mode: BudgetMode; stra
         {firstClear && p.cards.length > 1 && <span className="text-muted-foreground"> Your first card, {firstClear.name}, is gone in {formatMonths(firstClear.month)}.</span>}
       </p>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-0 border-y py-6 sm:grid-cols-[1.15fr_1fr_0.85fr]">
         <Stat label="Debt-free by" value={plan.months} format={(v) => monthLabel(v)} sub={formatMonths(plan.months)} highlight />
         <Stat label="Interest saved vs. minimums" highlight value={saved === null ? null : Math.max(0, saved)} format={(v) => money(v)}
           sub={base.status === "ok" ? `Minimums only: ${formatMonths(base.months)}` : "Minimums alone never pay it off"} />
@@ -492,25 +496,25 @@ function Results(p: { cards: CardInput[]; budget: number; mode: BudgetMode; stra
       <WhatIf cards={p.cards} budget={p.budget} mode={p.mode} strategy={p.strategy} plan={plan}
         extra={extra} setExtra={setExtra} boosted={boosted} onApply={(b) => { p.onApplyBudget(b); setExtra(0); }} />
 
-      <div className="rounded-2xl border bg-card p-4 shadow-card sm:p-6">
-        <div className="flex items-baseline justify-between gap-2">
+      <Reveal className="open-section">
+        <div className="grid gap-2 sm:flex sm:items-baseline sm:justify-between">
           <h3 className="font-semibold text-foreground">Payoff landscape</h3>
-          <span className="text-xs text-muted-foreground">Each band is a card — watch them disappear</span>
+          <span className="text-xs text-muted-foreground">Your path to zero</span>
         </div>
         <div className="mt-4"><PayoffLandscape cards={p.cards} plan={plan} base={base} boosted={extra > 0 ? boosted : null} /></div>
-      </div>
+      </Reveal>
 
-      <CompareStrategies cards={p.cards} budget={p.budget} mode={p.mode} strategy={p.strategy} onUse={p.onUseStrategy} />
-      <PaymentTimeline cards={p.cards} plan={plan} name={p.name} />
+      <Reveal><CompareStrategies cards={p.cards} budget={p.budget} mode={p.mode} strategy={p.strategy} onUse={p.onUseStrategy} /></Reveal>
+      <Reveal><PaymentTimeline cards={p.cards} plan={plan} name={p.name} /></Reveal>
     </section>
   );
 }
 
 function Stat({ label, value, format, sub, highlight }: { label: string; value: number | null; format: (v: number) => string; sub: string; highlight?: boolean }) {
   return (
-    <div className={cn("rounded-2xl border p-5 shadow-card", highlight ? "border-primary/40 bg-primary/15" : "bg-card")}>
+    <div className="metric-block">
       <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className={cn("mt-2 font-semibold tracking-tight text-foreground tabular-nums", highlight ? "text-4xl sm:text-5xl" : "text-2xl")}>
+      <div className={cn("metric-value mt-3 tabular-nums", highlight ? "text-primary" : "text-foreground")}>
         {value === null ? "—" : <CountUp value={value} format={format} />}
       </div>
       <div className="mt-1 text-xs text-muted-foreground">{sub}</div>

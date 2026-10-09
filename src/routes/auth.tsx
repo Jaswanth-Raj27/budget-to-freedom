@@ -1,3 +1,4 @@
+import { pageMeta } from "@/lib/page-meta";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
@@ -11,14 +12,7 @@ import { Logo } from "@/components/AppHeader";
 
 export const Route = createFileRoute("/auth")({
   validateSearch: z.object({ mode: z.enum(["signin", "signup"]).optional() }),
-  head: () => ({
-    meta: [
-      { title: "Sign in — Debt Free Buddy" },
-      { name: "description", content: "Sign in or create your free Debt Free Buddy account." },
-      { property: "og:title", content: "Sign in — Debt Free Buddy" },
-      { property: "og:description", content: "Create a free account to save your payoff plans." },
-    ],
-  }),
+  head: () => pageMeta("Sign in", "Sign in or create your free account to save private payoff plans."),
   component: AuthPage,
 });
 
@@ -76,17 +70,17 @@ function AuthPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center app-backdrop px-4 py-10">
       <Link to="/" className="mb-8"><Logo /></Link>
-      <div className="w-full max-w-sm rounded-2xl border bg-card p-6 shadow-card sm:p-8">
+      <div className="w-full max-w-md auth-panel bg-card p-7 sm:p-9">
         {sent ? (
           <div className="text-center">
-            <h1 className="text-xl font-semibold text-foreground">Check your email</h1>
+            <h1 className="editorial-title text-3xl text-foreground">Check your email</h1>
             <p className="mt-2 text-sm text-muted-foreground">
               We sent a confirmation link to <strong>{email}</strong>. Click it to finish creating your account.
             </p>
           </div>
         ) : (
           <>
-            <h1 className="text-xl font-semibold text-foreground">{signup ? "Create your account" : "Welcome back"}</h1>
+            <h1 className="editorial-title text-3xl text-foreground">{signup ? "Create your account" : "Welcome back"}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {signup ? "Free, private, and takes a minute." : "Sign in to see your saved plans."}
             </p>
@@ -125,8 +119,8 @@ function AuthPage() {
           </>
         )}
       </div>
-      <p className="mt-6 flex max-w-sm items-center gap-2 text-center text-xs text-muted-foreground">
-        <ShieldCheck className="h-4 w-4 shrink-0 text-accent" />
+      <p className="mt-6 flex max-w-md items-center gap-2 text-center text-xs text-muted-foreground">
+        <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
         We never ask for your card number — just your balances and rates.
       </p>
     </div>
