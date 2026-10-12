@@ -34,12 +34,13 @@ export function PayoffLandscape({ cards, plan, base, boosted, compact }: Props) 
       const row: Row = { m };
       let planTotal: number | undefined;
       if (inPlan) {
-        planTotal = 0;
+        let sum = 0;
         cards.forEach((c, i) => {
           const v = m === 0 ? c.balance : (r?.balances[i] ?? 0);
           row[`c${i}`] = v;
-          planTotal += v;
+          sum += v;
         });
+        planTotal = sum;
         row.plan = planTotal;
       }
       const b = m === 0 ? total0 : base.rows[m - 1]?.remaining;
