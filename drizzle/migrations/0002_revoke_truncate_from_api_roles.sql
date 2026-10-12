@@ -1,0 +1,1 @@
+REVOKE TRUNCATE ON TABLE public.profiles, public.scenarios, public.cards, public.saved_cards FROM anon, authenticated;
