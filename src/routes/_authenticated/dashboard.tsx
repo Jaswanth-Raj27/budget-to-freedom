@@ -11,6 +11,17 @@ import { Reveal } from "@/components/Reveal";
 import { monthLong } from "@/lib/plan-utils";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { simulate, money, formatMonths, type BudgetMode, type Strategy } from "@/lib/simulate";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -48,7 +59,7 @@ function Dashboard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("scenarios")
-        .select("*, cards(*)")
+        .select("*, cards!cards_scenario_id_fkey(*)")
         .order("updated_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -139,9 +150,30 @@ function Dashboard() {
                 </div>
                 <ArrowUpRight className="col-start-2 row-start-1 h-5 w-5 shrink-0 text-primary" />
               </Link>
-              <Button variant="ghost" size="icon" aria-label={`Delete ${s.name}`} onClick={() => remove(s.id, s.name)}>
-                <Trash2 className="h-4 w-4 text-muted-foreground" />
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label={`Delete ${s.name}`}>
+                    <Trash2 className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete “{s.name}”?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This permanently deletes the scenario, its cards, and any repayment history recorded for it.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => remove(s.id, s.name)}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Delete scenario
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </motion.div>
           );
         })}

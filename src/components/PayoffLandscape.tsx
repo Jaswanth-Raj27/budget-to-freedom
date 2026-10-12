@@ -32,7 +32,7 @@ export function PayoffLandscape({ cards, plan, base, boosted, compact }: Props) 
       const r = m === 0 ? null : plan.rows[m - 1];
       const inPlan = m <= planLen;
       const row: Row = { m };
-      let planTotal: number | undefined;
+      let planTotal = 0;
       if (inPlan) {
         planTotal = 0;
         cards.forEach((c, i) => {
@@ -44,7 +44,7 @@ export function PayoffLandscape({ cards, plan, base, boosted, compact }: Props) 
       }
       const b = m === 0 ? total0 : base.rows[m - 1]?.remaining;
       row.min = b;
-      if (b !== undefined) row.gap = [planTotal ?? 0, b];
+      if (b !== undefined) row.gap = [planTotal, b];
       if (boosted && boosted.status === "ok" && m <= boostLen) row.boost = m === 0 ? total0 : boosted.rows[m - 1]?.remaining;
       out.push(row);
     }

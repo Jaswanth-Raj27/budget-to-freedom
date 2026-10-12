@@ -56,6 +56,188 @@ export type Database = {
             referencedRelation: "scenarios"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "cards_scenario_user_owner_fkey"
+            columns: ["scenario_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "scenarios"
+            referencedColumns: ["id", "user_id"]
+          },
+        ]
+      }
+      debt_achievements: {
+        Row: {
+          achievement_key: string
+          earned_at: string
+          id: string
+          scenario_id: string
+          user_id: string
+        }
+        Insert: {
+          achievement_key: string
+          earned_at?: string
+          id?: string
+          scenario_id: string
+          user_id: string
+        }
+        Update: {
+          achievement_key?: string
+          earned_at?: string
+          id?: string
+          scenario_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "debt_achievements_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "scenarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "debt_achievements_scenario_owner_fkey"
+            columns: ["scenario_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "scenarios"
+            referencedColumns: ["id", "user_id"]
+          },
+        ]
+      }
+      debt_baselines: {
+        Row: {
+          baseline_amount: number
+          created_at: string
+          id: string
+          scenario_id: string
+          user_id: string
+        }
+        Insert: {
+          baseline_amount: number
+          created_at?: string
+          id?: string
+          scenario_id: string
+          user_id: string
+        }
+        Update: {
+          baseline_amount?: number
+          created_at?: string
+          id?: string
+          scenario_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "debt_baselines_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "scenarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "debt_baselines_scenario_owner_fkey"
+            columns: ["scenario_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "scenarios"
+            referencedColumns: ["id", "user_id"]
+          },
+        ]
+      }
+      debt_payments: {
+        Row: {
+          amount: number
+          card_id: string
+          created_at: string
+          id: string
+          payment_date: string
+          scenario_id: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          card_id: string
+          created_at?: string
+          id?: string
+          payment_date?: string
+          scenario_id: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          card_id?: string
+          created_at?: string
+          id?: string
+          payment_date?: string
+          scenario_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "debt_payments_card_scenario_owner_fkey"
+            columns: ["card_id", "scenario_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id", "scenario_id", "user_id"]
+          },
+          {
+            foreignKeyName: "debt_payments_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "scenarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "debt_payments_scenario_owner_fkey"
+            columns: ["scenario_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "scenarios"
+            referencedColumns: ["id", "user_id"]
+          },
+        ]
+      }
+      monthly_progress: {
+        Row: {
+          id: string
+          month: string
+          payment_count: number
+          scenario_id: string
+          total_paid: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          month: string
+          payment_count?: number
+          scenario_id: string
+          total_paid?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          month?: string
+          payment_count?: number
+          scenario_id?: string
+          total_paid?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_progress_scenario_id_fkey"
+            columns: ["scenario_id"]
+            isOneToOne: false
+            referencedRelation: "scenarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_progress_scenario_owner_fkey"
+            columns: ["scenario_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "scenarios"
+            referencedColumns: ["id", "user_id"]
+          },
         ]
       }
       profiles: {
@@ -153,7 +335,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      record_debt_payment: {
+        Args: {
+          p_amount: number
+          p_card_id: string
+          p_payment_date: string
+          p_scenario_id: string
+        }
+        Returns: Database["public"]["Tables"]["debt_payments"]["Row"]
+      }
     }
     Enums: {
       [_ in never]: never

@@ -25,7 +25,7 @@ export function ProgressBar({ elapsed, total, compact }: { elapsed: number; tota
 export function ActivePlanProgress() {
   const { data } = useQuery({
     queryKey: ["scenarios", "active"],
-    queryFn: async () => (await supabase.from("scenarios").select("id, created_at, budget, budget_mode, strategy, cards(*)").order("updated_at", { ascending: false }).limit(1).maybeSingle()).data,
+    queryFn: async () => (await supabase.from("scenarios").select("id, created_at, budget, budget_mode, strategy, cards!cards_scenario_id_fkey(*)").order("updated_at", { ascending: false }).limit(1).maybeSingle()).data,
   });
   if (!data || !data.cards.length) return null;
   const cards = [...data.cards].sort((a, b) => a.position - b.position).map((c) => ({ name: c.name, balance: Number(c.balance), apr: Number(c.apr), min_pct: Number(c.min_pct), min_floor: Number(c.min_floor) }));

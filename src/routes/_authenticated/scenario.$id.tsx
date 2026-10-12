@@ -10,6 +10,7 @@ import { PayoffLandscape } from "@/components/PayoffLandscape";
 import { CompareStrategies, CountUp, PaymentTimeline, ShareButton, WhatIf } from "@/components/ResultsSections";
 import { clearEvents, monthLabel, monthLong } from "@/lib/plan-utils";
 import { Crunching } from "@/components/PlanProgress";
+import { RepaymentTracker } from "@/components/RepaymentTracker";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +34,15 @@ export const Route = createFileRoute("/_authenticated/scenario/$id")({
 });
 
 const emptyDraft = { name: "", balance: "", apr: "", min_pct: "2", min_floor: "25" };
+type ScenarioCardInput = CardInput & { id?: string };
+
+function balanceCents(value: number | string) {
+  const normalized = String(value).trim();
+  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return null;
+  const [whole, fraction = ""] = normalized.split(".");
+  const cents = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+  return Number.isSafeInteger(cents) ? cents : null;
+}
 
 function ScenarioPage() {
   const reduce = useReducedMotion();
@@ -41,10 +51,11 @@ function ScenarioPage() {
   const isNew = id === "new";
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { user } = Route.useRouteContext();
 
   const [loading, setLoading] = useState(!isNew);
   const [step, setStep] = useState(1);
-  const [cards, setCards] = useState<CardInput[]>([]);
+  const [cards, setCards] = useState<ScenarioCardInput[]>([]);
   const [draft, setDraft] = useState(emptyDraft);
   const [name, setName] = useState("My payoff plan");
   const [budget, setBudget] = useState("");
@@ -83,7 +94,7 @@ function ScenarioPage() {
   useEffect(() => {
     if (isNew) return;
     (async () => {
-      const { data, error } = await supabase.from("scenarios").select("*, cards(*)").eq("id", id).maybeSingle();
+      const { data, error } = await supabase.from("scenarios").select("*, cards!cards_scenario_id_fkey(*)").eq("id", id).maybeSingle();
       if (error || !data) {
         toast.error("Scenario not found");
         navigate({ to: "/dashboard" });
@@ -95,7 +106,7 @@ function ScenarioPage() {
       setStrategy(data.strategy as Strategy);
       setCards(
         [...data.cards].sort((a, b) => a.position - b.position).map((c) => ({
-          name: c.name, balance: Number(c.balance), apr: Number(c.apr), min_pct: Number(c.min_pct), min_floor: Number(c.min_floor),
+          id: c.id, name: c.name, balance: Number(c.balance), apr: Number(c.apr), min_pct: Number(c.min_pct), min_floor: Number(c.min_floor),
         })),
       );
       setStep(3);
@@ -134,9 +145,24 @@ function ScenarioPage() {
       });
     }
   }
-  function removeCard(i: number) {
+  async function removeCard(i: number) {
     const c = cards[i];
     if (!c) return;
+    if (c.id) {
+      const { data: payments, error } = await supabase
+        .from("debt_payments")
+        .select("id")
+        .eq("card_id", c.id)
+        .limit(1);
+      if (error) {
+        toast.error("Couldn't verify repayment history, so this card was kept. Try again later.");
+        return;
+      }
+      if (payments?.length) {
+        toast.error(`${c.name} has repayment history and can't be removed until those payments are resolved.`);
+        return;
+      }
+    }
     setCards((cs) => cs.filter((_, j) => j !== i));
     toast(`${c.name} removed`);
   }
@@ -146,18 +172,74 @@ function ScenarioPage() {
     try {
       const payload = { name: name.trim() || "My payoff plan", budget: budgetNum, budget_mode: mode, strategy, updated_at: new Date().toISOString() };
       let sid = id;
+      let removedCardIds: string[] = [];
       if (isNew) {
         const { data, error } = await supabase.from("scenarios").insert(payload).select("id").single();
         if (error) throw error;
         sid = data.id;
       } else {
+        const { data: existingCards, error: cardsError } = await supabase
+          .from("cards")
+          .select("id, name, balance")
+          .eq("scenario_id", id);
+        if (cardsError) throw cardsError;
+
+        const existingById = new Map((existingCards ?? []).map((card) => [card.id, card]));
+        const baselineChanged = cards.some((card) => {
+          if (!card.id || !existingById.has(card.id)) return false;
+          return balanceCents(card.balance) !== balanceCents(existingById.get(card.id)!.balance);
+        });
+        if (baselineChanged) {
+          const { data: existingPayments, error: baselineCheckError } = await supabase
+            .from("debt_payments")
+            .select("id")
+            .eq("scenario_id", id)
+            .limit(1);
+          if (baselineCheckError) {
+            throw new Error("Couldn't verify repayment history, so the original debt balance was kept. Try again later.");
+          }
+          if (existingPayments?.length) {
+            throw new Error("This scenario already has repayments, so its starting balances are locked. Baseline corrections aren't supported yet; changing a starting balance would recalculate remaining debt as the corrected balance minus all recorded payments.");
+          }
+        }
+
+        const retainedIds = new Set(cards.flatMap((card) => card.id ? [card.id] : []));
+        const removedCards = (existingCards ?? []).filter((card) => !retainedIds.has(card.id));
+        removedCardIds = removedCards.map((card) => card.id);
+        if (removedCardIds.length) {
+          const { data: payments, error: paymentError } = await supabase
+            .from("debt_payments")
+            .select("id, card_id")
+            .in("card_id", removedCardIds);
+          if (paymentError) {
+            throw new Error("Couldn't verify repayment history, so no cards were removed. Try again later.");
+          }
+          const paidCardIds = new Set((payments ?? []).map((payment) => payment.card_id));
+          const blockedNames = removedCards.filter((card) => paidCardIds.has(card.id)).map((card) => card.name);
+          if (blockedNames.length) {
+            throw new Error(`${blockedNames.join(", ")} ${blockedNames.length === 1 ? "has" : "have"} repayment history and can't be removed until those payments are resolved.`);
+          }
+        }
+
         const { error } = await supabase.from("scenarios").update(payload).eq("id", id);
         if (error) throw error;
-        const { error: de } = await supabase.from("cards").delete().eq("scenario_id", id);
-        if (de) throw de;
       }
-      const { error: ce } = await supabase.from("cards").insert(cards.map((c, i) => ({ ...c, scenario_id: sid, position: i })));
-      if (ce) throw ce;
+
+      if (cards.length) {
+        const rows = cards.map(({ id: cardId, ...card }, position) => ({
+          ...card,
+          ...(cardId ? { id: cardId } : {}),
+          scenario_id: sid,
+          position,
+        }));
+        const { error } = await supabase.from("cards").upsert(rows, { onConflict: "id" });
+        if (error) throw error;
+      }
+
+      if (removedCardIds.length) {
+        const { error } = await supabase.from("cards").delete().in("id", removedCardIds).eq("scenario_id", sid);
+        if (error) throw error;
+      }
       qc.invalidateQueries({ queryKey: ["scenarios"] });
       toast.success("Scenario saved to your dashboard");
       if (isNew) navigate({ to: "/scenario/$id", params: { id: sid }, replace: true });
@@ -330,6 +412,14 @@ function ScenarioPage() {
         </motion.div>
       )}
       </AnimatePresence>
+
+      {!isNew && step === 3 && (
+        <RepaymentTracker
+          scenarioId={id}
+          userId={user.id}
+          cards={cards.filter((card): card is ScenarioCardInput & { id: string } => !!card.id)}
+        />
+      )}
     </div>
   );
 }
