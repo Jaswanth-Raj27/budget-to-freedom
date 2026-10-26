@@ -1,52 +1,43 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { AlertCircle, Award, CalendarDays, Flame, RefreshCw, Target } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { CardInput } from "@/lib/simulate";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  calculateScenarioRepayment,
+  formatInr,
+  getPaymentMonth,
+  hasReachedDebtPercent,
+  isMissingPaymentsTable,
+  isValidPaymentAmount,
+  isValidPaymentDate,
+  parseCents,
+} from "@/lib/repayment-utils";
+import {
+  getOrCreatePaymentRequestKey,
+  loadPendingPaymentAttempts,
+  paymentRequestFingerprint,
+  removePendingPaymentAttempt,
+  savePendingPaymentAttempts,
+  upsertPendingPaymentAttempt,
+  type PendingPaymentAttempt,
+} from "@/lib/payment-idempotency";
 
 type TrackedCard = CardInput & { id: string };
 
-const MAX_AMOUNT_CENTS = 999_999_999_999;
-
-function parseCents(value: string) {
-  const normalized = value.trim();
-  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return null;
-  const [whole, fraction = ""] = normalized.split(".");
-  const cents = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
-  return Number.isSafeInteger(cents) && cents <= MAX_AMOUNT_CENTS ? cents : null;
-}
-
-function formatInr(cents: number) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(cents / 100);
-}
-
 function utcDateInputValue() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function isValidPaymentDate(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const parsedDate = new Date(`${value}T00:00:00.000Z`);
-  return !Number.isNaN(parsedDate.getTime()) && parsedDate.toISOString().slice(0, 10) === value;
-}
-
-function isMissingPaymentsTable(error: unknown) {
-  if (!error || typeof error !== "object") return false;
-  const candidate = error as { code?: string; message?: string };
-  return candidate.code === "PGRST205" || candidate.code === "42P01" ||
-    /could not find.*debt_payments|debt_payments.*(not found|does not exist|schema cache)/i.test(candidate.message ?? "");
 }
 
 function formatPaymentDate(value: string) {
@@ -65,31 +56,16 @@ type AchievementDefinition = {
   earned: (paid: number, baseline: number, count: number, remaining: number) => boolean;
 };
 
-function reachedDebtPercent(paid: number, baseline: number, percent: bigint) {
-  return baseline > 0 && BigInt(paid) * 100n >= BigInt(baseline) * percent;
-}
-
 const achievementDefinitions: AchievementDefinition[] = [
   { key: "first_payment", label: "First payment", earned: (_paid, _baseline, count) => count > 0 },
   { key: "repaid_500", label: "₹500 repaid", earned: (paid) => paid >= 50_000 },
   { key: "repaid_1000", label: "₹1,000 repaid", earned: (paid) => paid >= 100_000 },
-  { key: "repaid_10_percent", label: "10% of debt repaid", earned: (paid, baseline) => reachedDebtPercent(paid, baseline, 10n) },
-  { key: "repaid_25_percent", label: "25% of debt repaid", earned: (paid, baseline) => reachedDebtPercent(paid, baseline, 25n) },
-  { key: "repaid_50_percent", label: "50% of debt repaid", earned: (paid, baseline) => reachedDebtPercent(paid, baseline, 50n) },
-  { key: "repaid_75_percent", label: "75% of debt repaid", earned: (paid, baseline) => reachedDebtPercent(paid, baseline, 75n) },
+  { key: "repaid_10_percent", label: "10% of debt repaid", earned: (paid, baseline) => hasReachedDebtPercent(paid, baseline, 10) },
+  { key: "repaid_25_percent", label: "25% of debt repaid", earned: (paid, baseline) => hasReachedDebtPercent(paid, baseline, 25) },
+  { key: "repaid_50_percent", label: "50% of debt repaid", earned: (paid, baseline) => hasReachedDebtPercent(paid, baseline, 50) },
+  { key: "repaid_75_percent", label: "75% of debt repaid", earned: (paid, baseline) => hasReachedDebtPercent(paid, baseline, 75) },
   { key: "debt_free", label: "Debt-free", earned: (_paid, baseline, _count, remaining) => baseline > 0 && remaining === 0 },
 ];
-
-function getPaymentMonth(paymentDate: string) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(paymentDate);
-  if (!match) return null;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const validDate = new Date(Date.UTC(year, month - 1, day));
-  if (month < 1 || month > 12 || validDate.getUTCFullYear() !== year || validDate.getUTCMonth() !== month - 1 || validDate.getUTCDate() !== day) return null;
-  return `${match[1]}-${match[2]}`;
-}
 
 function formatMonth(month: string) {
   const year = Number(month.slice(0, 4));
@@ -99,7 +75,7 @@ function formatMonth(month: string) {
 
 function currentMonthKey() {
   const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 function previousMonthKey(month: string) {
@@ -124,13 +100,30 @@ export function RepaymentTracker({
   const [amount, setAmount] = useState("");
   const [paymentDate, setPaymentDate] = useState(utcDateInputValue);
   const [saving, setSaving] = useState(false);
+  const [pendingAttempts, setPendingAttempts] = useState<PendingPaymentAttempt[]>([]);
+  const [storageReady, setStorageReady] = useState(false);
+  const [storageError, setStorageError] = useState(false);
+  const [abandonAttempt, setAbandonAttempt] = useState<PendingPaymentAttempt | null>(null);
+  const submissionLock = useRef(false);
+
+  useEffect(() => {
+    try {
+      setPendingAttempts(loadPendingPaymentAttempts(window.sessionStorage, userId));
+      setStorageError(false);
+    } catch {
+      setPendingAttempts([]);
+      setStorageError(true);
+    } finally {
+      setStorageReady(true);
+    }
+  }, [userId]);
 
   const paymentsQuery = useQuery({
     queryKey,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("debt_payments")
-        .select("id, card_id, amount, payment_date, created_at")
+        .select("id, user_id, scenario_id, card_id, amount, payment_date, created_at")
         .eq("user_id", userId)
         .eq("scenario_id", scenarioId)
         .order("payment_date", { ascending: false })
@@ -142,25 +135,11 @@ export function RepaymentTracker({
   });
 
   const payments = useMemo(() => paymentsQuery.data ?? [], [paymentsQuery.data]);
-  const paidCentsByCard = useMemo(() => {
-    const totals = new Map<string, number>();
-    for (const payment of payments) {
-      const cents = parseCents(String(payment.amount));
-      if (cents === null || cents <= 0) continue;
-      totals.set(payment.card_id, (totals.get(payment.card_id) ?? 0) + cents);
-    }
-    return totals;
-  }, [payments]);
-
-  const originalDebtCents = cards.reduce((total, card) => total + Math.max(0, parseCents(String(card.balance)) ?? 0), 0);
-  const validPayments = payments.flatMap((payment) => {
-    const cents = parseCents(String(payment.amount));
-    const month = getPaymentMonth(payment.payment_date);
-    return cents !== null && cents > 0 && month ? [{ cents, month }] : [];
-  });
-  const totalRepaidCents = validPayments.reduce((total, payment) => total + payment.cents, 0);
-  const remainingDebtCents = Math.max(0, originalDebtCents - totalRepaidCents);
-  const percentRepaid = originalDebtCents > 0 ? Math.min(100, (totalRepaidCents / originalDebtCents) * 100) : 0;
+  const repayment = useMemo(
+    () => calculateScenarioRepayment(cards, payments, userId, scenarioId),
+    [cards, payments, userId, scenarioId],
+  );
+  const { paidCentsByCard, originalDebtCents, totalRepaidCents, remainingDebtCents, percentRepaid, validPayments } = repayment;
 
   const monthlyTotals = new Map<string, { cents: number; count: number }>();
   for (const payment of validPayments) {
@@ -193,69 +172,152 @@ export function RepaymentTracker({
     isEarned: achievement.earned(totalRepaidCents, originalDebtCents, validPayments.length, remainingDebtCents),
   }));
 
-  async function recordPayment(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const selectedCard = cards.find((card) => card.id === cardId);
-    const amountCents = parseCents(amount);
-    if (!selectedCard) {
-      toast.error("Choose a card from this scenario.");
-      return;
-    }
-    if (amountCents === null || amountCents <= 0) {
-      toast.error("Enter a positive amount with no more than two decimal places.");
-      return;
-    }
-    if (!isValidPaymentDate(paymentDate)) {
-      toast.error("Choose a valid payment date.");
-      return;
-    }
-    if (paymentDate > utcDateInputValue()) {
-      toast.error("Payment date can't be in the future.");
-      return;
-    }
-
-    setSaving(true);
+  function persistAttempts(nextAttempts: PendingPaymentAttempt[]) {
     try {
+      savePendingPaymentAttempts(window.sessionStorage, userId, nextAttempts);
+      setPendingAttempts(nextAttempts);
+      setStorageError(false);
+      return true;
+    } catch {
+      setStorageError(true);
+      return false;
+    }
+  }
+
+  async function sendPaymentAttempt(attempt: PendingPaymentAttempt, retry: boolean) {
+    if (submissionLock.current) return;
+    if (!storageReady || storageError) {
+      toast.error("Pending payments can't be safely saved in this tab. Enable session storage and reload before submitting.");
+      return;
+    }
+    const selectedCard = cards.find((card) => card.id === attempt.cardId);
+    if (!selectedCard) {
+      toast.error("This pending payment's card is no longer in the selected scenario. Keep the attempt and resolve it before creating another payment.");
+      return;
+    }
+    if (!retry) {
       const startingCents = parseCents(String(selectedCard.balance));
       if (startingCents === null) {
         toast.error("This card's starting balance is invalid, so a payment can't be recorded.");
         return;
       }
+      const remainingCents = Math.max(0, startingCents - (paidCentsByCard.get(selectedCard.id) ?? 0));
+      if (!isValidPaymentAmount(attempt.amountCents, remainingCents)) {
+        toast.error(remainingCents === 0
+          ? "This card is already paid off. Choose another card to record a payment."
+          : `Enter an amount up to ${formatInr(remainingCents)} for this card.`);
+        return;
+      }
+    }
+    const nextAttempts = upsertPendingPaymentAttempt(pendingAttempts, attempt);
+    if (!persistAttempts(nextAttempts)) {
+      toast.error("This payment was not sent because its retry details could not be saved in this tab.");
+      return;
+    }
 
-      const { error } = await supabase.rpc("record_debt_payment", {
-        p_scenario_id: scenarioId,
-        p_card_id: selectedCard.id,
-        p_amount: amountCents / 100,
-        p_payment_date: paymentDate,
+    submissionLock.current = true;
+    setSaving(true);
+    try {
+      const { data, error } = await supabase.rpc("record_debt_payment", {
+        p_scenario_id: attempt.scenarioId,
+        p_card_id: attempt.cardId,
+        p_amount: attempt.amountCents / 100,
+        p_payment_date: attempt.paymentDate,
+        p_idempotency_key: attempt.idempotencyKey,
       });
       if (error) {
         if (error.code === "PGRST202" || /record_debt_payment.*(not found|schema cache)|could not find.*record_debt_payment/i.test(error.message)) {
-          toast.error("Secure payment recording is unavailable until database migration 0004 is applied.");
+          toast.error("Payment recording isn't available here yet. This request is saved as pending; retry it after the database function is available.");
           return;
         }
         if (error.message.includes("payment_exceeds_remaining_balance")) {
-          toast.error("Payment exceeds this card's current remaining balance. Enter a smaller amount or choose another card.");
+          toast.error("The server rejected this payment because it exceeds the current remaining balance. This attempt remains saved until you resolve or abandon it.");
           return;
         }
         if (error.message.includes("invalid_payment_date")) {
-          toast.error("Payment date can't be in the future.");
+          toast.error("The server rejected this payment date. The saved attempt remains available until you resolve or abandon it.");
           return;
         }
         if (error.message.includes("invalid_payment_amount")) {
-          toast.error("Enter a positive payment amount with no more than two decimal places.");
+          toast.error("The server rejected this payment amount. The saved attempt remains available until you resolve or abandon it.");
           return;
         }
-        throw error;
+        if (error.message.includes("invalid_idempotency_key") || error.message.includes("idempotency_key_reused")) {
+          toast.error("The server couldn't match this saved request key to its original details. Do not create a replacement payment; contact support to resolve this attempt.");
+          return;
+        }
+        toast.error("The server returned an error for this payment. Its saved request remains available; retry the same attempt or abandon it explicitly.");
+        return;
       }
 
-      setAmount("");
+      if (!data) {
+        toast.error("The payment result is uncertain. Retry this same saved attempt to check safely; don't create a new payment yet.");
+        return;
+      }
+
+      const clearedAttempts = removePendingPaymentAttempt(pendingAttempts, attempt.fingerprint);
+      try {
+        savePendingPaymentAttempts(window.sessionStorage, userId, clearedAttempts);
+        setPendingAttempts(clearedAttempts);
+        setStorageError(false);
+      } catch {
+        // A stale journal entry is safe: the database RPC returns the original
+        // row for an identical idempotency key if retried after reload.
+        setStorageError(true);
+      }
+      if (!retry) setAmount("");
       toast.success("Payment recorded");
       void queryClient.invalidateQueries({ queryKey });
     } catch {
-      toast.error("Couldn't save this payment. Please try again.");
+      toast.error("We couldn't confirm whether this payment was recorded. Its exact request is saved. Retry this same attempt to resolve it; don't submit a new payment yet.");
     } finally {
+      submissionLock.current = false;
       setSaving(false);
     }
+  }
+
+  async function recordPayment(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const selectedCard = cards.find((card) => card.id === cardId);
+    const amountCents = parseCents(amount);
+    if (!selectedCard) return void toast.error("Choose a card from this scenario.");
+    if (amountCents === null || amountCents <= 0) return void toast.error("Enter a positive amount with no more than two decimal places.");
+    if (!isValidPaymentDate(paymentDate)) return void toast.error("Choose a valid payment date.");
+    if (paymentDate > utcDateInputValue()) return void toast.error("Payment date can't be in the future.");
+    const fingerprint = paymentRequestFingerprint(scenarioId, selectedCard.id, amountCents, paymentDate);
+    const existing = pendingAttempts.find((attempt) => attempt.fingerprint === fingerprint);
+    const otherPending = pendingAttempts.some((attempt) => attempt.scenarioId === scenarioId && attempt.fingerprint !== fingerprint);
+    if (otherPending) {
+      toast.error("Resolve the earlier pending payment for this scenario first. Retry it or explicitly abandon it before starting another payment.");
+      return;
+    }
+    const keys = new Map(pendingAttempts.map((attempt) => [attempt.fingerprint, attempt.idempotencyKey]));
+    const idempotencyKey = getOrCreatePaymentRequestKey(keys, fingerprint);
+    await sendPaymentAttempt({
+      fingerprint,
+      idempotencyKey,
+      scenarioId,
+      cardId: selectedCard.id,
+      amountCents,
+      paymentDate,
+    }, Boolean(existing));
+  }
+
+  function retryPendingAttempt(attempt: PendingPaymentAttempt) {
+    setCardId(attempt.cardId);
+    setAmount((attempt.amountCents / 100).toFixed(2));
+    setPaymentDate(attempt.paymentDate);
+    void sendPaymentAttempt(attempt, true);
+  }
+
+  function confirmAbandonAttempt() {
+    if (!abandonAttempt) return;
+    const next = removePendingPaymentAttempt(pendingAttempts, abandonAttempt.fingerprint);
+    if (!persistAttempts(next)) {
+      toast.error("The attempt could not be removed from this tab's saved pending list.");
+      return;
+    }
+    setAbandonAttempt(null);
   }
 
   const missingTable = isMissingPaymentsTable(paymentsQuery.error);
@@ -270,6 +332,37 @@ export function RepaymentTracker({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {storageError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Pending payment storage is unavailable</AlertTitle>
+            <AlertDescription>Payment requests are not sent until this tab can save a retry-safe copy in session storage. Browser storage is tab-scoped and may be cleared when the tab closes.</AlertDescription>
+          </Alert>
+        )}
+
+        {pendingAttempts.filter((attempt) => attempt.scenarioId === scenarioId).map((attempt) => {
+          const pendingCardName = cards.find((card) => card.id === attempt.cardId)?.name ?? "Removed card";
+          return (
+            <Alert key={attempt.fingerprint}>
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Payment result needs confirmation</AlertTitle>
+              <AlertDescription className="mt-1 space-y-3">
+                <p>
+                  {formatInr(attempt.amountCents)} for {pendingCardName} on {formatPaymentDate(attempt.paymentDate)} may already have been recorded. Retry this exact request to safely resolve it; do not enter it as a new payment.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" onClick={() => retryPendingAttempt(attempt)} disabled={saving || !storageReady || storageError}>
+                    {saving ? "Checking…" : "Retry same payment"}
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setAbandonAttempt(attempt)} disabled={saving}>
+                    Abandon tracking
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          );
+        })}
+
         {paymentsQuery.isLoading && (
           <p className="text-sm text-muted-foreground" role="status">Loading payment history…</p>
         )}
@@ -281,7 +374,7 @@ export function RepaymentTracker({
             <AlertDescription className="mt-1 flex flex-wrap items-center justify-between gap-3">
               <span>
                 {missingTable
-                  ? "This database did not return the debt_payments table required by migration 0002. No payment data was changed."
+                  ? "This database doesn't have the repayment table available yet. No payment data was changed."
                   : "Your payment history is unavailable right now. Balances are hidden until the history can be checked."}
               </span>
               {!missingTable && (
@@ -418,7 +511,7 @@ export function RepaymentTracker({
                 <Label htmlFor="repayment-date">Payment date</Label>
                 <Input id="repayment-date" type="date" max={utcDateInputValue()} value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} required />
               </div>
-              <Button type="submit" disabled={saving || !cards.length} className="w-full lg:w-auto">
+              <Button type="submit" disabled={saving || !cards.length || !storageReady || storageError} className="w-full lg:w-auto">
                  {saving ? "Saving…" : "Record payment"}
               </Button>
               {!cards.length && <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-4">Add and save a card in this scenario before recording a payment.</p>}
@@ -470,6 +563,20 @@ export function RepaymentTracker({
           </>
         )}
       </CardContent>
+      <AlertDialog open={Boolean(abandonAttempt)} onOpenChange={(open) => { if (!open) setAbandonAttempt(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Abandon pending payment tracking?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This only removes the saved retry key from this browser tab. If the server recorded the payment, that payment remains in your history. Abandoning does not cancel or reverse it, and a new payment could duplicate it. Continue only if you understand this uncertainty.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep pending</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmAbandonAttempt}>I understand, abandon tracking</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

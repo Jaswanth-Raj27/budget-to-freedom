@@ -36,14 +36,6 @@ export const Route = createFileRoute("/_authenticated/scenario/$id")({
 const emptyDraft = { name: "", balance: "", apr: "", min_pct: "2", min_floor: "25" };
 type ScenarioCardInput = CardInput & { id?: string };
 
-function balanceCents(value: number | string) {
-  const normalized = String(value).trim();
-  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return null;
-  const [whole, fraction = ""] = normalized.split(".");
-  const cents = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
-  return Number.isSafeInteger(cents) ? cents : null;
-}
-
 function ScenarioPage() {
   const reduce = useReducedMotion();
   const transitionProps = reduce ? { initial: false as const, animate: { opacity: 1 }, exit: { opacity: 1 }, transition: { duration: 0 } } : stepMotion;
@@ -170,76 +162,37 @@ function ScenarioPage() {
   async function save() {
     setSaving(true);
     try {
-      const payload = { name: name.trim() || "My payoff plan", budget: budgetNum, budget_mode: mode, strategy, updated_at: new Date().toISOString() };
-      let sid = id;
-      let removedCardIds: string[] = [];
-      if (isNew) {
-        const { data, error } = await supabase.from("scenarios").insert(payload).select("id").single();
-        if (error) throw error;
-        sid = data.id;
-      } else {
-        const { data: existingCards, error: cardsError } = await supabase
-          .from("cards")
-          .select("id, name, balance")
-          .eq("scenario_id", id);
-        if (cardsError) throw cardsError;
-
-        const existingById = new Map((existingCards ?? []).map((card) => [card.id, card]));
-        const baselineChanged = cards.some((card) => {
-          if (!card.id || !existingById.has(card.id)) return false;
-          return balanceCents(card.balance) !== balanceCents(existingById.get(card.id)!.balance);
-        });
-        if (baselineChanged) {
-          const { data: existingPayments, error: baselineCheckError } = await supabase
-            .from("debt_payments")
-            .select("id")
-            .eq("scenario_id", id)
-            .limit(1);
-          if (baselineCheckError) {
-            throw new Error("Couldn't verify repayment history, so the original debt balance was kept. Try again later.");
-          }
-          if (existingPayments?.length) {
-            throw new Error("This scenario already has repayments, so its starting balances are locked. Baseline corrections aren't supported yet; changing a starting balance would recalculate remaining debt as the corrected balance minus all recorded payments.");
-          }
-        }
-
-        const retainedIds = new Set(cards.flatMap((card) => card.id ? [card.id] : []));
-        const removedCards = (existingCards ?? []).filter((card) => !retainedIds.has(card.id));
-        removedCardIds = removedCards.map((card) => card.id);
-        if (removedCardIds.length) {
-          const { data: payments, error: paymentError } = await supabase
-            .from("debt_payments")
-            .select("id, card_id")
-            .in("card_id", removedCardIds);
-          if (paymentError) {
-            throw new Error("Couldn't verify repayment history, so no cards were removed. Try again later.");
-          }
-          const paidCardIds = new Set((payments ?? []).map((payment) => payment.card_id));
-          const blockedNames = removedCards.filter((card) => paidCardIds.has(card.id)).map((card) => card.name);
-          if (blockedNames.length) {
-            throw new Error(`${blockedNames.join(", ")} ${blockedNames.length === 1 ? "has" : "have"} repayment history and can't be removed until those payments are resolved.`);
-          }
-        }
-
-        const { error } = await supabase.from("scenarios").update(payload).eq("id", id);
-        if (error) throw error;
-      }
-
-      if (cards.length) {
-        const rows = cards.map(({ id: cardId, ...card }, position) => ({
-          ...card,
+      const { data: sid, error } = await supabase.rpc("save_debt_scenario", {
+        p_scenario_id: isNew ? null : id,
+        p_name: name.trim() || "My payoff plan",
+        p_budget: budgetNum,
+        p_budget_mode: mode,
+        p_strategy: strategy,
+        p_cards: cards.map(({ id: cardId, ...card }, position) => ({
           ...(cardId ? { id: cardId } : {}),
-          scenario_id: sid,
+          ...card,
           position,
-        }));
-        const { error } = await supabase.from("cards").upsert(rows, { onConflict: "id" });
-        if (error) throw error;
+        })),
+      });
+      if (error) {
+        if (error.message.includes("card_has_repayment_history")) {
+          throw new Error("A card with repayment history can't be removed. Keep it in this scenario to preserve its payment records.");
+        }
+        if (error.message.includes("scenario_starting_balance_locked_after_payment")) {
+          throw new Error("This scenario already has repayments, so its starting balances are locked. Baseline corrections aren't supported yet.");
+        }
+        if (error.code === "PGRST202" || error.message.includes("save_debt_scenario")) {
+          throw new Error("Atomic scenario saving is not available in the database yet. Apply and verify migration 0006 before saving scenario edits.");
+        }
+        if (error.message.includes("invalid_scenario_input") || error.message.includes("invalid_card_input") || error.message.includes("duplicate_card_id")) {
+          throw new Error("Some scenario or card details are invalid. Review the values and try again.");
+        }
+        if (error.message.includes("scenario_not_owned") || error.message.includes("card_not_owned_by_scenario")) {
+          throw new Error("This scenario or one of its cards is no longer available to your account. Reload and try again.");
+        }
+        throw new Error("Couldn't save this scenario. Please try again.");
       }
-
-      if (removedCardIds.length) {
-        const { error } = await supabase.from("cards").delete().in("id", removedCardIds).eq("scenario_id", sid);
-        if (error) throw error;
-      }
+      if (!sid) throw new Error("The database did not return the saved scenario ID.");
       qc.invalidateQueries({ queryKey: ["scenarios"] });
       toast.success("Scenario saved to your dashboard");
       if (isNew) navigate({ to: "/scenario/$id", params: { id: sid }, replace: true });

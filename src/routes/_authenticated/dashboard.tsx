@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
-import { monthsElapsed, takeGuestPlan } from "@/lib/plan-utils";
+import { monthsElapsed, stashGuestPlan, takeGuestPlan } from "@/lib/plan-utils";
 import { Crunching, ProgressBar } from "@/components/PlanProgress";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, ArrowUpRight } from "lucide-react";
@@ -23,6 +23,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { simulate, money, formatMonths, type BudgetMode, type Strategy } from "@/lib/simulate";
+import { calculateScenarioRepayment, formatInr, isMissingPaymentsTable } from "@/lib/repayment-utils";
+import { Progress } from "@/components/ui/progress";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => pageMeta("Your plans", "Your private payoff plans, progress, budgets, and debt-free dates in one place."),
@@ -30,6 +32,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 });
 
 function Dashboard() {
+  const { user } = Route.useRouteContext();
   const reduce = useReducedMotion();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -41,13 +44,25 @@ function Dashboard() {
     const g = takeGuestPlan();
     if (!g || !g.cards.length) return;
     (async () => {
-      const { data, error } = await supabase.from("scenarios").insert({ name: "My first plan", budget: g.budget, budget_mode: g.mode, strategy: g.strategy }).select("id").single();
-      if (error) { toast.error(error.message); return; }
-      const { error: ce } = await supabase.from("cards").insert(g.cards.map((c, i) => ({ ...c, scenario_id: data.id, position: i })));
-      if (ce) { toast.error(ce.message); return; }
+      const { data: scenarioId, error } = await supabase.rpc("save_debt_scenario", {
+        p_scenario_id: null,
+        p_name: "My first plan",
+        p_budget: g.budget,
+        p_budget_mode: g.mode,
+        p_strategy: g.strategy,
+        p_cards: g.cards.map((card, position) => ({ ...card, position })),
+      });
+      if (error) {
+        stashGuestPlan(g);
+        toast.error(error.code === "PGRST202"
+          ? "Atomic scenario saving is not available yet. Apply and verify migration 0006 first. Your plan has been kept for retry."
+          : "Your plan couldn't be saved. It has been kept for retry.");
+        return;
+      }
+      if (!scenarioId) { stashGuestPlan(g); toast.error("The database did not return the saved scenario ID."); return; }
       qc.invalidateQueries({ queryKey: ["scenarios"] });
       toast.success("Your plan from the homepage is saved");
-      navigate({ to: "/scenario/$id", params: { id: data.id } });
+      navigate({ to: "/scenario/$id", params: { id: scenarioId } });
     })();
   }, [qc, navigate]);
   const { data: profile } = useQuery({
@@ -65,6 +80,19 @@ function Dashboard() {
       return data;
     },
   });
+  const paymentsQuery = useQuery({
+    queryKey: ["dashboard-debt-payments", user.id],
+    enabled: !!data?.length,
+    queryFn: async () => {
+      const { data: payments, error } = await supabase
+        .from("debt_payments")
+        .select("user_id, scenario_id, card_id, amount, payment_date")
+        .eq("user_id", user.id);
+      if (error) throw error;
+      return payments;
+    },
+    retry: (failureCount, error) => !isMissingPaymentsTable(error) && failureCount < 2,
+  });
 
   async function remove(id: string, name: string) {
     const { error } = await supabase.from("scenarios").delete().eq("id", id);
@@ -74,9 +102,12 @@ function Dashboard() {
   }
 
   const latest = data?.[0];
-  const latestCards = latest?.cards.map((c) => ({ name: c.name, balance: Number(c.balance), apr: Number(c.apr), min_pct: Number(c.min_pct), min_floor: Number(c.min_floor) })) ?? [];
+  const latestCards = latest?.cards.map((c) => ({ id: c.id, name: c.name, balance: Number(c.balance), apr: Number(c.apr), min_pct: Number(c.min_pct), min_floor: Number(c.min_floor) })) ?? [];
   const latestResult = latest ? simulate(latestCards, Number(latest.budget), latest.budget_mode as BudgetMode, latest.strategy as Strategy) : null;
   const latestTotal = latestCards.reduce((sum, c) => sum + c.balance, 0);
+  const latestRepayment = latest
+    ? calculateScenarioRepayment(latestCards, paymentsQuery.data ?? [], user.id, latest.id)
+    : null;
 
   return (
     <div>
@@ -104,6 +135,19 @@ function Dashboard() {
             <div className="col-span-2"><p className="text-xs text-muted-foreground">Starting balance</p><p className="mt-1 text-4xl font-medium tabular-nums">{money(latestTotal)}</p></div>
             <div><p className="text-xs text-muted-foreground">Monthly budget</p><p className="mt-1 text-xl tabular-nums">{money(Number(latest.budget))}</p></div>
             <div><p className="text-xs text-muted-foreground">Your approach</p><p className="mt-1 text-xl capitalize">{latest.strategy}</p></div>
+            <div className="col-span-2 border-t pt-4">
+              <p className="text-xs text-muted-foreground">Actual repayment progress</p>
+              {paymentsQuery.isLoading ? (
+                <p className="mt-1 text-sm">Loading repayment progress…</p>
+              ) : paymentsQuery.isError ? (
+                <p className="mt-1 text-sm">{isMissingPaymentsTable(paymentsQuery.error) ? "Repayment tracking isn't available in this database yet." : "Repayment progress couldn't be loaded."}</p>
+              ) : latestRepayment ? (
+                <>
+                  <p className="mt-1 text-sm font-medium tabular-nums">{formatInr(latestRepayment.totalRepaidCents)} repaid · {formatInr(latestRepayment.remainingDebtCents)} remaining</p>
+                  <Progress className="mt-2" value={latestRepayment.percentRepaid} aria-label={`${latestRepayment.percentRepaid.toFixed(1)} percent of tracked debt repaid`} />
+                </>
+              ) : null}
+            </div>
             {latestResult.status === "ok" && latestResult.months > 0 && <div className="col-span-2 border-t pt-4"><ProgressBar elapsed={monthsElapsed(latest.created_at)} total={latestResult.months} /></div>}
           </div>
         </section>
@@ -123,10 +167,13 @@ function Dashboard() {
         )}
         {data?.map((s, idx) => {
           const cards = [...s.cards].sort((a, b) => a.position - b.position).map((c) => ({
-            name: c.name, balance: Number(c.balance), apr: Number(c.apr), min_pct: Number(c.min_pct), min_floor: Number(c.min_floor),
+            id: c.id, name: c.name, balance: Number(c.balance), apr: Number(c.apr), min_pct: Number(c.min_pct), min_floor: Number(c.min_floor),
           }));
           const r = simulate(cards, Number(s.budget), s.budget_mode as BudgetMode, s.strategy as Strategy);
           const total = cards.reduce((a, c) => a + c.balance, 0);
+          const repayment = paymentsQuery.data
+            ? calculateScenarioRepayment(cards, paymentsQuery.data, user.id, s.id)
+            : null;
           return (
             <motion.div key={s.id} initial={reduce ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: Math.min(idx, 10) * 0.06, ease: [0.22, 1, 0.36, 1] }} className="ledger-row group flex items-center gap-3 p-4 transition-colors sm:p-5">
               <Link to="/scenario/$id" params={{ id: s.id }} className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:flex sm:gap-6">
@@ -135,6 +182,21 @@ function Dashboard() {
                   <div className="mt-0.5 text-xs text-muted-foreground">
                     {money(total)} across {cards.length} card{cards.length === 1 ? "" : "s"} · edited{" "}
                     {new Date(s.updated_at).toLocaleDateString()}
+                  </div>
+                  <div className="mt-2 max-w-xs">
+                    {paymentsQuery.isLoading ? (
+                      <p className="text-xs text-muted-foreground">Loading repayment progress…</p>
+                    ) : paymentsQuery.isError ? (
+                      <p className="text-xs text-muted-foreground">Repayment progress unavailable</p>
+                    ) : repayment ? (
+                      <>
+                        <div className="mb-1 flex justify-between gap-2 text-xs text-muted-foreground">
+                          <span>{repayment.percentRepaid.toFixed(1)}% repaid</span>
+                          <span>{formatInr(repayment.remainingDebtCents)} remaining</span>
+                        </div>
+                        <Progress value={repayment.percentRepaid} aria-label={`${repayment.percentRepaid.toFixed(1)} percent of ${s.name} debt repaid`} />
+                      </>
+                    ) : null}
                   </div>
                   {r.status === "ok" && r.months > 0 && <div className="mt-2 max-w-xs"><ProgressBar elapsed={monthsElapsed(s.created_at)} total={r.months} /></div>}
                 </div>

@@ -149,6 +149,7 @@ export type Database = {
           card_id: string
           created_at: string
           id: string
+          idempotency_key: string | null
           payment_date: string
           scenario_id: string
           user_id: string
@@ -158,6 +159,7 @@ export type Database = {
           card_id: string
           created_at?: string
           id?: string
+          idempotency_key?: string | null
           payment_date?: string
           scenario_id: string
           user_id: string
@@ -167,6 +169,7 @@ export type Database = {
           card_id?: string
           created_at?: string
           id?: string
+          idempotency_key?: string | null
           payment_date?: string
           scenario_id?: string
           user_id?: string
@@ -339,10 +342,22 @@ export type Database = {
         Args: {
           p_amount: number
           p_card_id: string
+          p_idempotency_key: string
           p_payment_date: string
           p_scenario_id: string
         }
         Returns: Database["public"]["Tables"]["debt_payments"]["Row"]
+      }
+      save_debt_scenario: {
+        Args: {
+          p_budget: number
+          p_budget_mode: string
+          p_cards: Json
+          p_name: string
+          p_scenario_id: string | null
+          p_strategy: string
+        }
+        Returns: string
       }
     }
     Enums: {

@@ -15,6 +15,13 @@
       "when": 1790405273239,
       "tag": "0001_create_saved_cards",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791788043221,
+      "tag": "0002_revoke_truncate_from_api_roles",
+      "breakpoints": true
     }
   ]
 }
