@@ -1,6 +1,12 @@
 # Migration reconciliation and testing plan
 
-This is a local plan. The live-database catalog spot check below is historical; no database was contacted for the current review. A disposable local PostgreSQL run is recorded separately below. Neither result establishes that every live object is free of manual drift.
+This is a local plan. A read-only catalog and migration-ledger check against the owner-verified project was completed on 2026-10-26 and is recorded first below. No migration was executed and no application data rows were read. A disposable local PostgreSQL run is recorded separately below; neither result establishes that every live object is free of manual drift.
+
+## Read-only target recheck (2026-10-26)
+
+The enabled Supabase database for the owner-verified Debt Free Buddy Lovable project (`acf39fdc-2c65-4a90-a261-ce2b7194c3a3`) was queried through the Lovable database connector using read-only `SELECT` statements. The connection reported database `postgres`, schema `public`, role `postgres`. Catalog inspection found only the four expected public base tables (`profiles`, `scenarios`, `cards`, `saved_cards`) and the `drizzle.__drizzle_migrations` ledger; no repayment relations were present. The ledger has three rows, IDs 1–3, whose hashes and timestamps exactly match local migrations 0000–0002 and the existing journal. No application records were queried. No SQL was changed or applied.
+
+This confirms the current recorded baseline and absence of repayment tables at the time of this read-only check. It does not establish absence of all manual drift, validate the current repayment drafts, or authorize migration execution. The separate local `supabase/config.toml` project ID remains mismatched and was not used as the target.
 
 ## Read-only target spot check (2026-10-12)
 
@@ -18,9 +24,15 @@ The migrations were applied manually with `psql`; this did not create migration-
 
 Recompute hashes for the exact current files before any future database test. Do not cite the earlier PostgreSQL results as validation of the current SQL drafts.
 
+## Current local migration execution (2026-10-26)
+
+After the earlier test environment proved unavailable, PostgreSQL 16.15 was installed in Ubuntu 24.04 WSL and used for a fresh native local database with a minimal synthetic Supabase auth shim. All current local migration files 0000–0007 executed successfully in order. Targeted synthetic checks passed for exact idempotent retry, key conflict, overpayment rejection, cross-owner denial, blocked direct payment insert, scenario/card rollback behavior, starting-balance protection, concurrent overpayment prevention using two independent sessions, account deletion cascades, and API-role TRUNCATE denial. A second fresh database renamed the original generated 0003 card FK before running 0004; the 0004 draft succeeded and created the composite FK. Full details and limits are in [repayment-migration-local-test-results.md](repayment-migration-local-test-results.md).
+
+This is PostgreSQL 16 native validation, not Supabase/PostgREST or PostgreSQL 17.11 validation. It does not validate the hosted migration executor, metadata/checksum behavior, or migration-runner transaction semantics. No hosted migration or database write was performed.
+
 ## Repayment migration provenance
 
-The current local 0003–0007 files are not a fully verified release set. Migration 0003 was restored byte-for-byte from its original local Git blob, then modified to revoke TRUNCATE from PUBLIC/anon/authenticated. Current 0004 and 0005 are newly authored replacement drafts because their previously reviewed source bytes could not be recovered. Migrations 0006 and 0007 remain local SQL artifacts whose compatibility with these replacement drafts has not been tested as a complete sequence. The earlier PostgreSQL run described above used different 0004/0005 bytes and does not validate this sequence. Treat the present files as drafts pending static review and repeatable disposable PostgreSQL testing.
+The current local 0003–0007 files are not a fully verified release set. Migration 0003 was restored byte-for-byte from its original local Git blob, then modified to revoke TRUNCATE from PUBLIC/anon/authenticated. Current 0004 and 0005 are newly authored replacement drafts because their previously reviewed source bytes could not be recovered. Migrations 0006 and 0007 are local SQL artifacts. Their current sequence has passed one native PostgreSQL 16.15 run with the tests in [repayment-migration-local-test-results.md](repayment-migration-local-test-results.md), but Supabase/PostgREST and PostgreSQL 17.11 compatibility remain untested. Treat the present files as drafts pending provenance recovery, Supabase-compatible testing, and migration-runner review.
 
 ## What workflow is established
 
@@ -72,9 +84,9 @@ Before any shared-environment application, an authorized operator should inspect
 4. Verify the SECURITY DEFINER owner can access each required table under actual RLS/ownership settings, can execute `auth.uid()`, and can insert into debt_payments. Check table/function owners individually; do not assume a shared owner.
 5. Take and verify a recoverable backup before staging. Confirm the rollback/recovery procedure preserves repayment rows and does not rely on dropping tables.
 
-Run the repeatable tests in [payment-idempotency-postgres-test-plan.md](payment-idempotency-postgres-test-plan.md) against a disposable Supabase-compatible PostgreSQL instance before staging. Required coverage includes migration order/prerequisites, payment success and rollback, exact retries, same-key conflicts, concurrent overpayment attempts, cross-user denial, RLS/direct-write permissions, atomic scenario saves, and TRUNCATE permissions.
+Extend and repeat the coverage in [repayment-migration-local-test-results.md](repayment-migration-local-test-results.md) against a disposable Supabase-compatible PostgreSQL instance before staging. Required coverage includes migration order/prerequisites, payment success and rollback, exact retries, same-key conflicts, concurrent overpayment attempts, cross-user denial, RLS/direct-write permissions, atomic scenario saves, and TRUNCATE permissions.
 
-The local Supabase/PostgreSQL environment is currently unavailable: Docker Desktop's service is stopped and `docker version` cannot reach the engine; no `psql` or Supabase CLI is available on PATH. Do not repeatedly retry the unavailable daemon. For repeatable future tests, first restore a healthy local Docker engine, then verify the temporary Supabase project is local-only and has no hosted link. Use synthetic data and independent database sessions for concurrency cases. An isolated PostgreSQL substitute requires a compatible PostgreSQL version, Supabase-like `auth` schema and `auth.uid()`, roles `anon`, `authenticated`, `service_role`, required auth functions, and independent sessions. Do not point tests at any shared or personal database.
+Docker Desktop 29.1.5 is now running and native PostgreSQL 16.15 is installed in Ubuntu WSL. The current migration sequence passed the limited local test recorded below. Supabase CLI 2.122.0 was run through `npx` against an isolated temporary workdir, but the local Supabase stack did not start because Docker could not fetch `public.ecr.aws/supabase/postgres:17.11.0.006` (registry returned an HTTP response to an HTTPS client). The pre-existing retained Supabase test stacks were left untouched. For full Supabase-specific validation, retry once registry access is healthy and verify the temporary stack is local-only with separate ports. Use synthetic data and independent database sessions for concurrency cases. Do not point tests at any shared or personal database.
 
 ## Failure, rollback, and release handling
 

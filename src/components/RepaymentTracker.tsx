@@ -323,8 +323,13 @@ export function RepaymentTracker({
   const missingTable = isMissingPaymentsTable(paymentsQuery.error);
   const historyReady = !paymentsQuery.isLoading && !paymentsQuery.isError;
 
+  useEffect(() => {
+    if (window.location.hash !== "#record-payment" || paymentsQuery.isLoading) return;
+    document.getElementById(historyReady ? "record-payment" : "repayment-tracker")?.scrollIntoView();
+  }, [historyReady, paymentsQuery.isLoading]);
+
   return (
-    <Card className="mt-10 overflow-hidden">
+    <Card id="repayment-tracker" className="mt-10 overflow-hidden">
       <CardHeader>
         <CardTitle className="text-xl">Repayment tracker</CardTitle>
         <CardDescription>
@@ -464,7 +469,7 @@ export function RepaymentTracker({
               </ul>
             </section>
 
-            <form onSubmit={recordPayment} className="grid gap-4 rounded-xl border bg-background/60 p-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
+            <form id="record-payment" onSubmit={recordPayment} className="grid scroll-mt-6 gap-4 rounded-xl border bg-background/60 p-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
               <div className="space-y-1.5">
                 <Label htmlFor="repayment-card">Card</Label>
                 <Select value={cardId} onValueChange={setCardId} disabled={!cards.length}>

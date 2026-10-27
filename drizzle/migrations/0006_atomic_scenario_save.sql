@@ -15,10 +15,25 @@ BEGIN
        OR NOT EXISTS (
            SELECT 1
              FROM pg_catalog.pg_trigger AS trigger_row
+              JOIN pg_catalog.pg_proc AS trigger_function
+                ON trigger_function.oid = trigger_row.tgfoid
             WHERE trigger_row.tgrelid = 'public.cards'::regclass
               AND trigger_row.tgname = 'prevent_repaid_scenario_balance_change'
               AND NOT trigger_row.tgisinternal
               AND trigger_row.tgenabled IN ('O', 'A')
+               AND trigger_row.tgfoid = pg_catalog.to_regprocedure(
+                   'public.prevent_repaid_scenario_balance_change()'
+               )
+               AND trigger_function.prosecdef
+               AND trigger_row.tgtype = 19
+               AND EXISTS (
+                   SELECT 1
+                     FROM pg_catalog.pg_attribute AS card_column
+                    WHERE card_column.attrelid = trigger_row.tgrelid
+                      AND card_column.attname = 'balance'
+                      AND NOT card_column.attisdropped
+                      AND card_column.attnum = ANY (trigger_row.tgattr)
+               )
        ) THEN
         RAISE EXCEPTION 'Migration 0006 requires the payment RPC and enabled balance-protection trigger from migration 0005';
     END IF;

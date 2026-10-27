@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CsvHelpNote, CsvImportButton } from "@/components/CsvImport";
-import { money } from "@/lib/simulate";
+import { formatInr, parseCents } from "@/lib/repayment-utils";
 
 export const Route = createFileRoute("/_authenticated/cards")({
   head: () => pageMeta("My Cards", "Manage your private card library and reuse balances and rates in your payoff plans."),
@@ -86,7 +86,7 @@ function CardsPage() {
       </div>
       <div className="mt-3"><CsvHelpNote /></div>
 
-      <div className="mt-8 border-t">
+      <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
         {isLoading && <p className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground animate-pulse">Loading your cards…</p>}
         {data && data.length === 0 && (
           <div className="border-b py-12 text-center">
@@ -98,20 +98,17 @@ function CardsPage() {
           {data?.map((c, i) => (
             <motion.div key={c.id} layout initial={reduce ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
               transition={{ duration: 0.3, delay: Math.min(i, 8) * 0.05 }}
-              className="ledger-row grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-2 p-4 sm:gap-4 sm:p-5">
-              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/15"><CreditCard className="h-4 w-4 text-accent" /></div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-medium">{c.name}</div>
-                <div className="text-xs text-muted-foreground">
-                  {money(Number(c.balance), true)} · {Number(c.apr)}% APR · min {Number(c.min_pct)}% / {money(Number(c.min_floor))} · updated {new Date(c.last_updated).toLocaleDateString()}
-                </div>
-              </div>
-              <Button variant="ghost" size="icon" aria-label={`Edit ${c.name}`} onClick={() => setEditing({ id: c.id, draft: {
+              className="flex min-h-56 flex-col justify-between overflow-hidden rounded-2xl bg-primary p-5 text-primary-foreground">
+              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs opacity-75">My Cards</p><h2 className="mt-1 truncate text-lg font-semibold">{c.name}</h2></div><CreditCard className="h-6 w-6 shrink-0 opacity-80" aria-hidden="true" /></div>
+              <div className="mt-6"><p className="text-xs opacity-75">Saved balance</p><p className="mt-1 text-2xl tabular-nums">{formatInr(parseCents(String(c.balance)) ?? 0)}</p><p className="mt-2 text-xs opacity-80">{Number(c.apr)}% APR · minimum {Number(c.min_pct)}% / {formatInr(parseCents(String(c.min_floor)) ?? 0)}</p></div>
+              <div className="mt-4 flex items-center justify-between gap-2 border-t border-primary-foreground/20 pt-2"><span className="text-xs opacity-75">Updated {new Date(c.last_updated).toLocaleDateString()}</span><div className="flex">
+              <Button variant="ghost" size="icon" className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground" aria-label={`Edit ${c.name}`} onClick={() => setEditing({ id: c.id, draft: {
                 name: c.name, balance: String(Number(c.balance)), apr: String(Number(c.apr)), min_pct: String(Number(c.min_pct)), min_floor: String(Number(c.min_floor)),
-              } })}><Pencil className="h-4 w-4 text-muted-foreground" /></Button>
-              <Button variant="ghost" size="icon" aria-label={`Delete ${c.name}`} onClick={() => remove(c.id, c.name)}>
-                <Trash2 className="h-4 w-4 text-muted-foreground" />
+              } })}><Pencil className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground" aria-label={`Delete ${c.name}`} onClick={() => remove(c.id, c.name)}>
+                <Trash2 className="h-4 w-4" />
               </Button>
+              </div></div>
             </motion.div>
           ))}
         </AnimatePresence>
@@ -123,10 +120,10 @@ function CardsPage() {
           {d && (
             <form className="grid gap-4 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); save(); }}>
               <div className="space-y-1.5 sm:col-span-2"><Label htmlFor="n">Card nickname</Label><Input id="n" value={d.name} onChange={(e) => set({ name: e.target.value })} placeholder="e.g. Chase Freedom" /></div>
-              <div className="space-y-1.5"><Label htmlFor="b">Current balance ($)</Label><Input id="b" type="number" step="0.01" min="0" value={d.balance} onChange={(e) => set({ balance: e.target.value })} /></div>
+              <div className="space-y-1.5"><Label htmlFor="b">Current balance (₹)</Label><Input id="b" type="number" step="0.01" min="0" value={d.balance} onChange={(e) => set({ balance: e.target.value })} /></div>
               <div className="space-y-1.5"><Label htmlFor="a">Interest rate (APR %)</Label><Input id="a" type="number" step="0.01" min="0" value={d.apr} onChange={(e) => set({ apr: e.target.value })} /></div>
               <div className="space-y-1.5"><Label htmlFor="p">Minimum payment (%)</Label><Input id="p" type="number" step="0.1" min="0" value={d.min_pct} onChange={(e) => set({ min_pct: e.target.value })} /></div>
-              <div className="space-y-1.5"><Label htmlFor="f">Minimum floor ($)</Label><Input id="f" type="number" step="1" min="0" value={d.min_floor} onChange={(e) => set({ min_floor: e.target.value })} /></div>
+              <div className="space-y-1.5"><Label htmlFor="f">Minimum floor (₹)</Label><Input id="f" type="number" step="1" min="0" value={d.min_floor} onChange={(e) => set({ min_floor: e.target.value })} /></div>
               {editing?.id && <p className="text-xs text-muted-foreground sm:col-span-2">Changes here won't affect scenarios you've already saved.</p>}
               <div className="sm:col-span-2"><Button type="submit" className="w-full">Save card</Button></div>
             </form>

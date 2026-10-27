@@ -7,6 +7,7 @@ DO $$
 DECLARE
     v_card_fk_count integer;
     v_card_fk_name text;
+    v_card_fk_validated boolean;
 BEGIN
     IF pg_catalog.to_regclass('public.scenarios') IS NULL
        OR pg_catalog.to_regclass('public.cards') IS NULL
@@ -62,18 +63,21 @@ BEGIN
     END IF;
 
     IF EXISTS (
-        SELECT 1 FROM pg_catalog.pg_constraint
-         WHERE conname IN (
-             'scenarios_id_user_id_unique',
-             'cards_id_scenario_user_unique',
-             'scenarios_user_id_auth_users_fkey',
-             'cards_scenario_user_owner_fkey',
-             'debt_baselines_scenario_owner_fkey',
-             'debt_payments_scenario_owner_fkey',
-             'debt_payments_card_scenario_owner_fkey',
-             'monthly_progress_scenario_owner_fkey',
-             'debt_achievements_scenario_owner_fkey'
-         )
+        SELECT 1
+          FROM (VALUES
+              ('public.scenarios'::regclass, 'scenarios_id_user_id_unique'),
+              ('public.cards'::regclass, 'cards_id_scenario_user_unique'),
+              ('public.scenarios'::regclass, 'scenarios_user_id_auth_users_fkey'),
+              ('public.cards'::regclass, 'cards_scenario_user_owner_fkey'),
+              ('public.debt_baselines'::regclass, 'debt_baselines_scenario_owner_fkey'),
+              ('public.debt_payments'::regclass, 'debt_payments_scenario_owner_fkey'),
+              ('public.debt_payments'::regclass, 'debt_payments_card_scenario_owner_fkey'),
+              ('public.monthly_progress'::regclass, 'monthly_progress_scenario_owner_fkey'),
+              ('public.debt_achievements'::regclass, 'debt_achievements_scenario_owner_fkey')
+          ) AS expected(relation_oid, constraint_name)
+          JOIN pg_catalog.pg_constraint AS existing
+            ON existing.conrelid = expected.relation_oid
+           AND existing.conname = expected.constraint_name
     ) THEN
         RAISE EXCEPTION 'Migration 0004 target constraint names already exist; inspect the schema before proceeding';
     END IF;
@@ -135,8 +139,8 @@ BEGIN
 
     -- Find the original cascade FK by its catalog definition, not its generated
     -- name. Require one validated FK on exactly (card_id) -> cards(id).
-    SELECT count(*)::integer, min(fk.conname::text)
-      INTO v_card_fk_count, v_card_fk_name
+    SELECT count(*)::integer, min(fk.conname::text), bool_and(fk.convalidated)
+      INTO v_card_fk_count, v_card_fk_name, v_card_fk_validated
       FROM pg_catalog.pg_constraint AS fk
      WHERE fk.conrelid = 'public.debt_payments'::regclass
        AND fk.contype = 'f'
@@ -151,11 +155,10 @@ BEGIN
              WHERE a.attrelid = 'public.cards'::regclass
                AND a.attname = 'id' AND NOT a.attisdropped
        )
-       AND fk.confdeltype = 'c'
-       AND fk.convalidated;
+       AND fk.confdeltype = 'c';
 
-    IF v_card_fk_count <> 1 THEN
-        RAISE EXCEPTION 'Migration 0004 expected exactly one validated ON DELETE CASCADE FK from debt_payments.card_id to cards.id; found %', v_card_fk_count;
+    IF v_card_fk_count <> 1 OR NOT COALESCE(v_card_fk_validated, false) THEN
+        RAISE EXCEPTION 'Migration 0004 expected exactly one validated ON DELETE CASCADE FK from debt_payments.card_id to cards.id; found %, validated=%', v_card_fk_count, v_card_fk_validated;
     END IF;
 
     EXECUTE pg_catalog.format(

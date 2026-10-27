@@ -237,6 +237,31 @@ REVOKE ALL PRIVILEGES ON TABLE public.debt_payments
     FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON TABLE public.debt_payments TO authenticated;
 
+DO $$
+BEGIN
+    IF pg_catalog.has_table_privilege(
+           'anon', 'public.debt_payments', 'INSERT, UPDATE, DELETE, TRUNCATE'
+       )
+       OR pg_catalog.has_table_privilege(
+           'authenticated', 'public.debt_payments', 'INSERT, UPDATE, DELETE, TRUNCATE'
+       )
+       OR pg_catalog.has_any_column_privilege(
+           'anon', 'public.debt_payments', 'INSERT'
+       )
+       OR pg_catalog.has_any_column_privilege(
+           'anon', 'public.debt_payments', 'UPDATE'
+       )
+       OR pg_catalog.has_any_column_privilege(
+           'authenticated', 'public.debt_payments', 'INSERT'
+       )
+       OR pg_catalog.has_any_column_privilege(
+           'authenticated', 'public.debt_payments', 'UPDATE'
+       ) THEN
+        RAISE EXCEPTION 'Migration 0005 found inherited or column-level API write privileges on debt_payments after revocation';
+    END IF;
+END;
+$$;
+
 CREATE FUNCTION public.prevent_repaid_scenario_balance_change()
 RETURNS trigger
 LANGUAGE plpgsql

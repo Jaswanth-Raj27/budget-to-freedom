@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { monthsElapsed, stashGuestPlan, takeGuestPlan } from "@/lib/plan-utils";
 import { Crunching, ProgressBar } from "@/components/PlanProgress";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -22,8 +22,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { simulate, money, formatMonths, type BudgetMode, type Strategy } from "@/lib/simulate";
-import { calculateScenarioRepayment, formatInr, isMissingPaymentsTable } from "@/lib/repayment-utils";
+import { simulate, formatMonths, type BudgetMode, type Strategy } from "@/lib/simulate";
+import { calculateScenarioRepayment, formatInr, isMissingPaymentsTable, parseCents } from "@/lib/repayment-utils";
 import { Progress } from "@/components/ui/progress";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -37,6 +37,13 @@ function Dashboard() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const imported = useRef(false);
+  const [overview, setOverview] = useState<"plan" | "repayment">("plan");
+  const overviewRef = useRef<HTMLDivElement>(null);
+  function showOverview(index: number) {
+    const container = overviewRef.current;
+    const card = container?.children[index] as HTMLElement | undefined;
+    if (container && card) container.scrollTo({ left: card.offsetLeft - container.offsetLeft, behavior: reduce ? "instant" : "smooth" });
+  }
   // Carry a plan built on the homepage (before signup) into a saved scenario
   useEffect(() => {
     if (imported.current) return;
@@ -69,6 +76,15 @@ function Dashboard() {
     queryKey: ["profile"],
     queryFn: async () => (await supabase.from("profiles").select("name").maybeSingle()).data,
   });
+  const savedCardsQuery = useQuery({
+    queryKey: ["dashboard-saved-card-balances", user.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("saved_cards").select("id, balance");
+      if (error) throw error;
+      return data;
+    },
+  });
+  const savedTotal = savedCardsQuery.data?.reduce((sum, card) => sum + (parseCents(String(card.balance)) ?? 0), 0) ?? 0;
   const { data, isLoading } = useQuery({
     queryKey: ["scenarios"],
     queryFn: async () => {
@@ -125,15 +141,18 @@ function Dashboard() {
       </div>
 
       {latest && latestResult && (
-        <section className="mt-9 grid overflow-hidden rounded-lg border bg-card md:grid-cols-[1.3fr_1fr]">
+        <section className="mt-9" aria-label="Plan overview">
+        <div ref={overviewRef} onScroll={(event) => { const el = event.currentTarget; setOverview(el.scrollLeft > el.clientWidth / 2 ? "repayment" : "plan"); }} className="relative flex snap-x snap-mandatory gap-3 overflow-x-auto pb-3" aria-label="Scroll to see plan and debt summary">
+        <article className="grid min-w-[94%] snap-start overflow-hidden rounded-lg border bg-card md:grid-cols-[1.3fr_1fr]">
           <div className="bg-primary p-6 text-primary-foreground sm:p-8">
-            <p className="text-xs font-medium uppercase opacity-80">Your most recent plan</p>
-            <h2 className="editorial-title mt-4 text-3xl sm:text-4xl">{latestResult.status === "ok" ? <>A fresh start.<br />{monthLong(latestResult.months)}.</> : "Let’s find your next step."}</h2>
-            <Link to="/scenario/$id" params={{ id: latest.id }} className="mt-6 inline-flex items-center gap-2 border-b border-primary-foreground/40 pb-1 text-sm">{latest.name} <ArrowUpRight className="h-4 w-4" /></Link>
+                    <p className="mt-5 text-xs font-medium uppercase opacity-80">Your most recent plan</p>
+                    <h2 className="editorial-title mt-4 text-3xl sm:text-4xl">{latestResult.status === "ok" ? <>A fresh start.<br />{monthLong(latestResult.months)}.</> : "Let’s find your next step."}</h2>
+                    <Link to="/scenario/$id" params={{ id: latest.id }} className="mt-6 inline-flex items-center gap-2 border-b border-primary-foreground/40 pb-1 text-sm">{latest.name} <ArrowUpRight className="h-4 w-4" /></Link>
+            <Link to="/scenario/$id" params={{ id: latest.id }} hash="record-payment" className="mt-6 inline-flex items-center gap-2 border-b border-primary-foreground/40 pb-1 text-sm font-medium">Record payment <ArrowUpRight className="h-4 w-4" /></Link>
           </div>
           <div className="grid grid-cols-2 gap-5 p-6 sm:p-8">
-            <div className="col-span-2"><p className="text-xs text-muted-foreground">Starting balance</p><p className="mt-1 text-4xl font-medium tabular-nums">{money(latestTotal)}</p></div>
-            <div><p className="text-xs text-muted-foreground">Monthly budget</p><p className="mt-1 text-xl tabular-nums">{money(Number(latest.budget))}</p></div>
+            <div className="col-span-2"><p className="text-xs text-muted-foreground">Starting balance</p><p className="mt-1 text-4xl font-medium tabular-nums">{formatInr(Math.round(latestTotal * 100))}</p></div>
+            <div><p className="text-xs text-muted-foreground">Monthly budget</p><p className="mt-1 text-xl tabular-nums">{formatInr(Math.round(Number(latest.budget) * 100))}</p></div>
             <div><p className="text-xs text-muted-foreground">Your approach</p><p className="mt-1 text-xl capitalize">{latest.strategy}</p></div>
             <div className="col-span-2 border-t pt-4">
               <p className="text-xs text-muted-foreground">Actual repayment progress</p>
@@ -150,8 +169,23 @@ function Dashboard() {
             </div>
             {latestResult.status === "ok" && latestResult.months > 0 && <div className="col-span-2 border-t pt-4"><ProgressBar elapsed={monthsElapsed(latest.created_at)} total={latestResult.months} /></div>}
           </div>
+        </article>
+        <article className="min-w-[94%] snap-start overflow-hidden rounded-lg border bg-card p-6 sm:p-8" aria-label="Debt summary">
+          <p className="text-xs font-medium uppercase text-muted-foreground">My Cards</p>
+          <h2 className="editorial-title mt-3 text-3xl">Total card balances</h2>
+          {savedCardsQuery.isLoading ? <p className="mt-6">Loading your cards…</p> : savedCardsQuery.isError ? <p className="mt-6">Card balances couldn’t be loaded.</p> : <p className="mt-6 text-4xl tabular-nums">{formatInr(savedTotal)}</p>}
+          <p className="mt-6 text-sm text-muted-foreground">Sum of the balances saved in My Cards. Plan payments do not update these balances.</p>
+          <Link to="/cards" className="mt-5 inline-flex items-center gap-2 border-b border-primary/40 pb-1 text-sm font-medium">View My Cards <ArrowUpRight className="h-4 w-4" /></Link>
+        </article>
+        </div>
+        <div className="mt-2 flex items-center gap-4 text-sm">
+          <button type="button" onClick={() => showOverview(0)} aria-pressed={overview === "plan"} className={overview === "plan" ? "font-semibold text-foreground" : "text-muted-foreground"}>Recent plan</button>
+          <button type="button" onClick={() => showOverview(1)} aria-pressed={overview === "repayment"} className={overview === "repayment" ? "font-semibold text-foreground" : "text-muted-foreground"}>Debt summary →</button>
+          <span className="text-xs text-muted-foreground">Swipe or scroll sideways</span>
+        </div>
         </section>
       )}
+      {!isLoading && !latest && <section className="mt-9 rounded-lg border bg-card p-6 sm:p-8"><h2 className="editorial-title text-2xl">Total card balances</h2>{savedCardsQuery.isLoading ? <p className="mt-3">Loading your cards…</p> : savedCardsQuery.isError ? <p className="mt-3">Card balances couldn’t be loaded.</p> : <p className="mt-3 text-3xl tabular-nums">{formatInr(savedTotal)}</p>}<p className="mt-3 text-sm text-muted-foreground">Sum of balances saved in My Cards.</p><Link to="/cards" className="mt-4 inline-block underline">View My Cards</Link></section>}
       <Reveal className="mt-10">
       <div className="mb-4 flex items-center justify-between border-b pb-4"><h2 className="editorial-title text-2xl">Your saved plans</h2><span className="text-xs tabular-nums text-muted-foreground">{data?.length ?? 0} plans</span></div>
       <div className="space-y-0">
@@ -180,7 +214,7 @@ function Dashboard() {
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-semibold text-foreground">{s.name}</div>
                   <div className="mt-0.5 text-xs text-muted-foreground">
-                    {money(total)} across {cards.length} card{cards.length === 1 ? "" : "s"} · edited{" "}
+                    {formatInr(Math.round(total * 100))} across {cards.length} card{cards.length === 1 ? "" : "s"} · edited{" "}
                     {new Date(s.updated_at).toLocaleDateString()}
                   </div>
                   <div className="mt-2 max-w-xs">
