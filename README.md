@@ -4,20 +4,24 @@ Debt Free Buddy helps people turn credit-card debt into a clear, manageable payo
 
 > Debt Free Buddy does not connect to bank accounts or collect card numbers. Plans use the balances, interest rates, and budgets that you enter.
 
-## Published app screenshots
+## Website screenshots
 
-These captures show the public [published demo](https://budget-to-freedom.lovable.app), including its landing and authentication screens. The published build can differ from newer source changes in this repository. No personal financial records are shown.
+Captured locally from the current repository version, rather than the older published demo. The guest calculator uses the app's built-in example balances; no personal financial records are shown.
 
-![Debt Free Buddy landing page](docs/screenshots/landing-desktop.jpg)
+![Current Debt Free Buddy home page](docs/screenshots/current-home-desktop.jpg)
+
+| Guest payoff calculator | Example payoff plan and chart |
+|---|---|
+| ![Enter balances and compare payoff strategies](docs/screenshots/guest-planner.jpg) | ![Generated plan using the built-in example balances](docs/screenshots/guest-result.jpg) |
 
 | Sign in | Create an account |
 |---|---|
-| ![Debt Free Buddy sign-in screen](docs/screenshots/sign-in.jpg) | ![Debt Free Buddy account creation screen](docs/screenshots/sign-up.jpg) |
+| ![Current sign-in screen](docs/screenshots/current-sign-in.jpg) | ![Current account creation screen](docs/screenshots/current-sign-up.jpg) |
 
 <details>
 <summary>Mobile preview</summary>
 
-<img src="docs/screenshots/landing-mobile.jpg" alt="Debt Free Buddy mobile landing page" width="320">
+<img src="docs/screenshots/current-home-mobile.jpg" alt="Current Debt Free Buddy mobile home page" width="320">
 
 </details>
 
